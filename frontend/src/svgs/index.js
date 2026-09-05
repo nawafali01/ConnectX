@@ -1,0 +1,11 @@
+export { LogoIcon } from './LogoIcon';
+export { SendIcon } from './SendIcon';
+export { UserPlusIcon } from './UserPlusIcon';
+export { CheckCheckIcon } from './CheckCheckIcon';
+export { PhoneIcon } from './PhoneIcon';
+export { UserIcon } from './UserIcon';
+export { ArrowRightIcon } from './ArrowRightIcon';
+export { SparklesIcon } from './SparklesIcon';
+export { EditIcon } from './EditIcon';
+export { SmileIcon } from './SmileIcon';
+export { ChatDotsIcon } from './ChatDotsIcon';
