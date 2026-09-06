@@ -543,3 +543,233 @@
   background: var(--primary-100);
   transform: scale(1.15);
 }
+
+/* =============================================
+   Message 3-dot Menu & Context Menu
+   ============================================= */
+
+.msg-bubble-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  position: relative;
+}
+
+.message-row.outgoing .msg-bubble-row {
+  flex-direction: row-reverse;
+}
+
+/* 3-dot button — hidden until hover */
+.msg-menu-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.msg-three-dot-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--color-text-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--trans-fast), background var(--trans-fast), color var(--trans-fast);
+  flex-shrink: 0;
+}
+
+.message-row:hover .msg-three-dot-btn,
+.msg-three-dot-btn:focus {
+  opacity: 1;
+}
+
+.msg-three-dot-btn:hover {
+  background: rgba(124, 58, 237, 0.1);
+  color: var(--primary-600);
+}
+
+/* Context Menu Popup */
+.msg-context-menu {
+  position: absolute;
+  bottom: 32px;
+  z-index: 50;
+  background: #ffffff;
+  border: 1px solid rgba(124, 58, 237, 0.12);
+  border-radius: 14px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.16), 0 2px 8px rgba(124, 58, 237, 0.1);
+  min-width: 148px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: menuPop 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-origin: bottom center;
+}
+
+.msg-context-menu.menu-right {
+  left: 0;
+}
+
+.msg-context-menu.menu-left {
+  right: 0;
+}
+
+@keyframes menuPop {
+  from { opacity: 0; transform: scale(0.88); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.msg-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 12px;
+  border: none;
+  background: transparent;
+  border-radius: 9px;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-main);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: background var(--trans-fast), color var(--trans-fast);
+}
+
+.msg-menu-item:hover {
+  background: var(--primary-50);
+  color: var(--primary-700);
+}
+
+.msg-menu-item.danger {
+  color: #e11d48;
+}
+
+.msg-menu-item.menu-danger:hover {
+  background: #fef2f2 !important;
+  color: #dc2626 !important;
+}
+
+/* Typing Indicator */
+.typing-indicator-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  margin: 4px 16px;
+  background: rgba(124, 58, 237, 0.08);
+  border-radius: 12px;
+  font-size: 0.8rem;
+  color: var(--color-primary, #7c3aed);
+  width: fit-content;
+}
+
+.typing-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.typing-dots span {
+  width: 5px;
+  height: 5px;
+  background: var(--color-primary, #7c3aed);
+  border-radius: 50%;
+  animation: typingBounce 1.2s infinite ease-in-out;
+}
+
+.typing-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typingBounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.5; }
+  40% { transform: scale(1.1); opacity: 1; }
+}
+
+
+.msg-menu-icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Inline Edit Mode */
+.msg-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 180px;
+}
+
+.msg-edit-input {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1.5px solid rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-family: var(--font-body);
+  font-size: 0.93rem;
+  color: inherit;
+  outline: none;
+  width: 100%;
+}
+
+.message-row.incoming .msg-edit-input {
+  background: rgba(124, 58, 237, 0.06);
+  border-color: rgba(124, 58, 237, 0.25);
+  color: var(--color-text-main);
+}
+
+.msg-edit-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.msg-edit-cancel,
+.msg-edit-save {
+  padding: 4px 12px;
+  border-radius: 7px;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+}
+
+.msg-edit-cancel {
+  background: rgba(255, 255, 255, 0.2);
+  color: inherit;
+}
+
+.msg-edit-save {
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--primary-700);
+}
+
+.message-row.incoming .msg-edit-cancel {
+  background: rgba(124, 58, 237, 0.08);
+  color: var(--color-text-muted);
+}
+
+.message-row.incoming .msg-edit-save {
+  background: var(--primary-600);
+  color: white;
+}
+
+/* Edited tag */
+.msg-edited-tag {
+  font-size: 0.65rem;
+  opacity: 0.7;
+  font-style: italic;
+}
+

@@ -21,17 +21,20 @@ export const ProfileScreen = ({ user, onEnterChat, onEditProfile }) => {
       <div className="profile-card-display">
         <div
           className="profile-avatar-large"
-          style={{ background: user.avatar?.bg || '#ede9fe', padding: 0, overflow: 'hidden' }}
+          style={{ background: user.avatar?.bg || '#ede9fe' }}
         >
-          {user.avatar?.url ? (
-            <img
-              src={user.avatar.url}
-              alt={user.name}
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-            />
-          ) : (
-            <span>👤</span>
-          )}
+          {/* Inner clip container — keeps image round without cutting the badge */}
+          <div style={{ width: '100%', height: '100%', borderRadius: 'inherit', overflow: 'hidden', position: 'absolute', inset: 0 }}>
+            {(user.customPhoto || user.avatar?.url) ? (
+              <img
+                src={user.customPhoto || user.avatar.url}
+                alt={user.name}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              />
+            ) : (
+              <span style={{ fontSize: '2.8rem' }}>👤</span>
+            )}
+          </div>
           <span className="profile-online-badge" />
         </div>
 

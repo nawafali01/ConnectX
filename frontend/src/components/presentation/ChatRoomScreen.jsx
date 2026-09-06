@@ -5,6 +5,7 @@ import { UserPlusIcon } from '../../svgs/UserPlusIcon';
 import { SmileIcon } from '../../svgs/SmileIcon';
 import { MessageBubble } from './MessageBubble';
 import { UserSwitcherModal } from './UserSwitcherModal';
+import { EditProfileModal } from '../modals/EditProfileModal';
 import { APP_CONFIG } from '../../constants/appConfig';
 
 const QUICK_EMOJIS = ['👋', '😊', '🔥', '🚀', '💜', '🎉', '👍', '💯'];
@@ -13,24 +14,52 @@ export const ChatRoomScreen = ({
   activeUser,
   users,
   messages,
+  onlineUsers = [],
+  isTyping = false,
+  typingUserName = '',
+  onTypingStart,
+  onTypingStop,
   onSendMessage,
   onSwitchUser,
   onAddNewUser,
   onViewProfile,
+  onSaveProfile,
+  onDeleteMessage,
+  onEditMessage,
 }) => {
   const [inputText, setInputText] = useState('');
   const [showUserModal, setShowUserModal] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
   const messagesEndRef = useRef(null);
+  const typingTimerRef = useRef(null);
 
   // Auto-scroll to latest message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, isTyping]);
+
+  const handleInputChange = (e) => {
+    const val = e.target.value;
+    setInputText(val);
+
+    if (val.trim()) {
+      onTypingStart?.();
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = setTimeout(() => {
+        onTypingStop?.();
+      }, 1500);
+    } else {
+      onTypingStop?.();
+    }
+  };
 
   const handleSend = (e) => {
     e?.preventDefault();
     if (!inputText.trim()) return;
+
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+    onTypingStop?.();
 
     onSendMessage(inputText.trim());
     setInputText('');
@@ -48,10 +77,10 @@ export const ChatRoomScreen = ({
           <LogoIcon size={38} />
           <div className="chat-brand-info">
             <h2 className="chat-room-title">{APP_CONFIG.defaultRoom.name}</h2>
-            <div className="chat-room-status">
+            <span className="chat-room-status">
               <span className="online-dot" />
-              <span>{users.length} participants connected</span>
-            </div>
+              {onlineUsers.length > 0 ? `${onlineUsers.length} Online` : 'Connected'}
+            </span>
           </div>
         </div>
 
@@ -61,20 +90,20 @@ export const ChatRoomScreen = ({
             <button
               id="btn-active-user-badge"
               className="active-user-badge-btn"
-              onClick={() => setShowUserModal(true)}
-              title="Click to switch typing user"
+              onClick={() => setShowEditProfile(true)}
+              title="Click to edit your profile"
             >
               <div
                 className="mini-avatar"
                 style={{ background: activeUser.avatar?.bg || '#ede9fe', overflow: 'hidden', padding: 0 }}
               >
-                {activeUser.avatar?.url ? (
+                {(activeUser.customPhoto || activeUser.avatar?.url) ? (
                   <img
-                    src={activeUser.avatar.url}
+                    src={activeUser.customPhoto || activeUser.avatar.url}
                     alt={activeUser.name}
                     width="26"
                     height="26"
-                    style={{ borderRadius: '50%', display: 'block' }}
+                    style={{ borderRadius: '50%', display: 'block', objectFit: 'cover' }}
                   />
                 ) : (
                   <span>👤</span>
@@ -98,20 +127,32 @@ export const ChatRoomScreen = ({
 
       {/* Messages Scroll Area */}
       <div className="chat-messages-container" data-testid="chat-messages-container">
-        <div className="date-separator">
-          <span className="date-separator-pill">ConnectX Live Chat</span>
-        </div>
-
         {messages.map((msg) => {
-          const isOutgoing = activeUser && msg.senderId === activeUser.id;
+          const msgSenderId = String(msg.senderId || '');
+          const currentUserId = String(activeUser?.id || activeUser?._id || '');
+          const isOutgoing = Boolean(currentUserId && msgSenderId === currentUserId);
           return (
             <MessageBubble
-              key={msg.id}
+              key={msg.id || msg._id}
               message={msg}
               isOutgoing={isOutgoing}
+              onDelete={onDeleteMessage}
+              onEdit={onEditMessage}
             />
           );
         })}
+
+        {/* Typing indicator */}
+        {isTyping && (
+          <div className="typing-indicator-bar">
+            <span className="typing-dots">
+              <span />
+              <span />
+              <span />
+            </span>
+            <span className="typing-text">{typingUserName} is typing...</span>
+          </div>
+        )}
 
         <div ref={messagesEndRef} />
       </div>
@@ -155,7 +196,7 @@ export const ChatRoomScreen = ({
                 : 'Type your message...'
             }
             value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
+            onChange={handleInputChange}
             autoComplete="off"
           />
         </div>
@@ -179,6 +220,18 @@ export const ChatRoomScreen = ({
           onSelectUser={onSwitchUser}
           onAddNewUser={onAddNewUser}
           onClose={() => setShowUserModal(false)}
+        />
+      )}
+
+      {/* Edit Profile Modal */}
+      {showEditProfile && (
+        <EditProfileModal
+          user={activeUser}
+          onSave={(updatedData) => {
+            onSaveProfile?.(updatedData);
+            setShowEditProfile(false);
+          }}
+          onClose={() => setShowEditProfile(false)}
         />
       )}
     </div>

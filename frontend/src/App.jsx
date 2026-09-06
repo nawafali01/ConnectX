@@ -11,6 +11,7 @@ import './styles/index.css';
 import './styles/onboarding.css';
 import './styles/chat.css';
 import './styles/theme-customizer.css';
+import './styles/modals.css';
 
 const SCREENS = {
   WELCOME: 'welcome',
@@ -37,26 +38,28 @@ export default function App() {
 
   const {
     messages,
+    onlineUsers,
     sendMessage,
+    deleteMessage,
+    editMessage,
     isTyping,
     typingUserName,
+    sendTypingStart,
+    sendTypingStop,
   } = useChat(activeUser);
 
   // Flow Navigation Handlers
   const handleWelcomeNext = () => {
-    // If a user profile already exists, we can still let them view/edit or go to form
     setCurrentScreen(SCREENS.FORM);
     setIsSecondUserMode(false);
   };
 
-  const handleFormSubmit = (formData) => {
-    const newUser = registerUser(formData);
+  const handleFormSubmit = async (formData) => {
+    await registerUser(formData);
     if (isSecondUserMode) {
-      // Return straight to chat room with new user registered!
       setIsSecondUserMode(false);
       setCurrentScreen(SCREENS.CHAT);
     } else {
-      // First user flow: go to profile review screen
       setCurrentScreen(SCREENS.PROFILE);
     }
   };
@@ -123,10 +126,20 @@ export default function App() {
             activeUser={activeUser}
             users={users}
             messages={messages}
+            onlineUsers={onlineUsers}
+            isTyping={isTyping}
+            typingUserName={typingUserName}
+            onTypingStart={sendTypingStart}
+            onTypingStop={sendTypingStop}
             onSendMessage={sendMessage}
             onSwitchUser={switchActiveUser}
             onAddNewUser={handleAddNewUserFromChat}
             onViewProfile={() => setCurrentScreen(SCREENS.PROFILE)}
+            onSaveProfile={(updatedData) => {
+              if (activeUser) updateUserProfile(activeUser.id, updatedData);
+            }}
+            onDeleteMessage={deleteMessage}
+            onEditMessage={editMessage}
           />
         )}
       </main>
