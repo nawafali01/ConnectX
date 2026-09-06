@@ -21,8 +21,29 @@ const SCREENS = {
 };
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState(SCREENS.WELCOME);
+  const [currentScreen, setCurrentScreen] = useState(() => {
+    try {
+      const savedScreen = localStorage.getItem('connectx_current_screen');
+      const savedUserId = localStorage.getItem('connectx_active_user_id');
+      if (savedScreen && Object.values(SCREENS).includes(savedScreen)) {
+        if (savedScreen === SCREENS.CHAT && !savedUserId) {
+          return SCREENS.WELCOME;
+        }
+        return savedScreen;
+      }
+      if (savedUserId) return SCREENS.CHAT;
+    } catch (e) {}
+    return SCREENS.WELCOME;
+  });
+
   const [isSecondUserMode, setIsSecondUserMode] = useState(false);
+
+  // Save currentScreen in localStorage
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('connectx_current_screen', currentScreen);
+    } catch (e) {}
+  }, [currentScreen]);
 
   // Theme Management
   const { theme, setColors, applyPreset } = useTheme();

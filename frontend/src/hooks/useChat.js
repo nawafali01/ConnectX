@@ -1,9 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getSocket } from '../services/socket';
 import { api } from '../services/api';
+import { getStoredMessages, saveStoredMessages } from '../functions/storage';
 
 export const useChat = (activeUser) => {
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState(() => {
+    const saved = getStoredMessages();
+    return Array.isArray(saved) && saved.length > 0 ? saved : [];
+  });
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
   const [typingUserName, setTypingUserName] = useState('');
@@ -15,6 +19,11 @@ export const useChat = (activeUser) => {
     activeUserRef.current = activeUser;
   }, [activeUser]);
 
+  // Persist messages whenever updated
+  useEffect(() => {
+    saveStoredMessages(messages);
+  }, [messages]);
+
   // Initialize socket and listeners
   useEffect(() => {
     const socket = getSocket();
@@ -23,13 +32,14 @@ export const useChat = (activeUser) => {
     // Load initial message history from backend
     api.getMessages('general')
       .then((res) => {
-        if (res && res.success && Array.isArray(res.messages) && res.messages.length > 0) {
-          setMessages(
-            res.messages.map((m) => ({
-              ...m,
-              id: (m.id || m._id).toString(),
-            }))
-          );
+        if (res && res.success && Array.isArray(res.messages)) {
+          const formatted = res.messages.map((m) => ({
+            ...m,
+            id: (m.id || m._id).toString(),
+            status: m.status || 'sent',
+          }));
+          setMessages(formatted);
+          saveStoredMessages(formatted);
         }
       })
       .catch((err) => console.warn('Failed to load message history:', err));
@@ -131,10 +141,16 @@ export const useChat = (activeUser) => {
       }
     };
 
+    const handleMessagesCleared = () => {
+      setMessages([]);
+      saveStoredMessages([]);
+    };
+
     socket.on('message:new', handleNewMessage);
     socket.on('message:status', handleMessageStatus);
     socket.on('message:edited', handleMessageEdited);
     socket.on('message:deleted', handleMessageDeleted);
+    socket.on('messages:cleared', handleMessagesCleared);
     socket.on('typing:show', handleTypingShow);
     socket.on('typing:hide', handleTypingHide);
     socket.on('users:online', handleOnlineUsers);
@@ -145,6 +161,7 @@ export const useChat = (activeUser) => {
       socket.off('message:status', handleMessageStatus);
       socket.off('message:edited', handleMessageEdited);
       socket.off('message:deleted', handleMessageDeleted);
+      socket.off('messages:cleared', handleMessagesCleared);
       socket.off('typing:show', handleTypingShow);
       socket.off('typing:hide', handleTypingHide);
       socket.off('users:online', handleOnlineUsers);
@@ -259,12 +276,23 @@ export const useChat = (activeUser) => {
     socket.emit('typing:stop', { room: 'general' });
   }, []);
 
+  /**
+   * Clear all messages in the chat
+   */
+  const clearChat = useCallback(() => {
+    setMessages([]);
+    saveStoredMessages([]);
+    const socket = socketRef.current || getSocket();
+    socket.emit('messages:clear', { room: 'general' });
+  }, []);
+
   return {
     messages,
     onlineUsers,
     sendMessage,
     deleteMessage,
     editMessage,
+    clearChat,
     isTyping,
     typingUserName,
     sendTypingStart,

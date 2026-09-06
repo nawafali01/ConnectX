@@ -6,6 +6,7 @@ import { SmileIcon } from '../../svgs/SmileIcon';
 import { MessageBubble } from './MessageBubble';
 import { UserSwitcherModal } from './UserSwitcherModal';
 import { EditProfileModal } from '../modals/EditProfileModal';
+import { EditMessageModal } from '../modals/EditMessageModal';
 import { APP_CONFIG } from '../../constants/appConfig';
 
 const QUICK_EMOJIS = ['👋', '😊', '🔥', '🚀', '💜', '🎉', '👍', '💯'];
@@ -31,6 +32,7 @@ export const ChatRoomScreen = ({
   const [showUserModal, setShowUserModal] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
+  const [editingMessage, setEditingMessage] = useState(null);
   const messagesEndRef = useRef(null);
   const typingTimerRef = useRef(null);
 
@@ -136,8 +138,9 @@ export const ChatRoomScreen = ({
               key={msg.id || msg._id}
               message={msg}
               isOutgoing={isOutgoing}
+              activeUser={activeUser}
               onDelete={onDeleteMessage}
-              onEdit={onEditMessage}
+              onOpenEdit={(messageToEdit) => setEditingMessage(messageToEdit)}
             />
           );
         })}
@@ -232,6 +235,17 @@ export const ChatRoomScreen = ({
             setShowEditProfile(false);
           }}
           onClose={() => setShowEditProfile(false)}
+        />
+      )}
+
+      {/* Edit Message Modal */}
+      {editingMessage && (
+        <EditMessageModal
+          message={editingMessage}
+          onSave={(msgId, newText) => {
+            onEditMessage?.(msgId, newText);
+          }}
+          onClose={() => setEditingMessage(null)}
         />
       )}
     </div>

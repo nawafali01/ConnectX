@@ -1,9 +1,7 @@
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const Message = require('../models/Message');
-
-// In-memory fallback stores when DB is offline
-const memoryMessages = [];
+const store = require('../config/store');
 
 const setupSocketIO = (io) => {
   // Track online users: socketId -> user info
@@ -65,7 +63,7 @@ const setupSocketIO = (io) => {
             status: 'sent',
             createdAt: new Date().toISOString(),
           };
-          memoryMessages.push(msgObj);
+          store.addMessage(msgObj);
         }
 
         msgObj.id = (msgObj._id || msgObj.id).toString();
@@ -79,6 +77,7 @@ const setupSocketIO = (io) => {
             await Message.findByIdAndUpdate(msgObj._id, { status: 'delivered' }).catch(() => {});
           } else {
             msgObj.status = 'delivered';
+            store.updateMessage(msgObj.id, { status: 'delivered' });
           }
           io.to(room).emit('message:status', { messageId: msgObj.id, status: 'delivered' });
         }, 400);
@@ -89,6 +88,7 @@ const setupSocketIO = (io) => {
             await Message.findByIdAndUpdate(msgObj._id, { status: 'read' }).catch(() => {});
           } else {
             msgObj.status = 'read';
+            store.updateMessage(msgObj.id, { status: 'read' });
           }
           io.to(room).emit('message:status', { messageId: msgObj.id, status: 'read' });
         }, 1000);
@@ -111,12 +111,7 @@ const setupSocketIO = (io) => {
           );
           if (doc) updatedMsg = doc.toObject();
         } else {
-          const found = memoryMessages.find((m) => (m.id === messageId || m._id === messageId));
-          if (found) {
-            found.text = text;
-            found.edited = true;
-            updatedMsg = found;
-          }
+          updatedMsg = store.updateMessage(messageId, { text, edited: true });
         }
 
         if (updatedMsg) {
@@ -138,13 +133,25 @@ const setupSocketIO = (io) => {
         if (mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(messageId)) {
           await Message.findByIdAndUpdate(messageId, { deletedAt: new Date() }).catch(() => {});
         } else {
-          const idx = memoryMessages.findIndex((m) => (m.id === messageId || m._id === messageId));
-          if (idx !== -1) memoryMessages.splice(idx, 1);
+          store.deleteMessage(messageId);
         }
         io.to(room).emit('message:deleted', { messageId });
       } catch (err) {
         console.error('message:delete error:', err.message);
         socket.emit('error', { message: err.message });
+      }
+    });
+
+    // ─── Clear all messages ────────────────────────────────────────
+    socket.on('messages:clear', async ({ room = 'general' } = {}) => {
+      try {
+        if (mongoose.connection.readyState === 1) {
+          await Message.updateMany({ room, deletedAt: null }, { deletedAt: new Date() }).catch(() => {});
+        }
+        store.clearMessages(room);
+        io.to(room).emit('messages:cleared');
+      } catch (err) {
+        console.error('messages:clear error:', err.message);
       }
     });
 

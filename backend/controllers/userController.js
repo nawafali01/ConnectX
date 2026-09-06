@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
 const User = require('../models/User');
-
-const memoryUsers = [];
+const store = require('../config/store');
 
 // POST /api/users/register
 const registerUser = async (req, res) => {
@@ -13,7 +12,7 @@ const registerUser = async (req, res) => {
       return res.status(201).json({ success: true, user });
     }
 
-    // In-memory fallback
+    // In-memory persistent fallback
     const memUser = {
       _id: 'user_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
       name: name || 'Anonymous User',
@@ -25,7 +24,7 @@ const registerUser = async (req, res) => {
       createdAt: new Date().toISOString(),
     };
     memUser.id = memUser._id;
-    memoryUsers.push(memUser);
+    store.addUser(memUser);
 
     res.status(201).json({
       success: true,
@@ -43,7 +42,7 @@ const getAllUsers = async (req, res) => {
       const users = await User.find().select('-__v').sort({ createdAt: -1 });
       return res.json({ success: true, users });
     }
-    res.json({ success: true, users: memoryUsers });
+    res.json({ success: true, users: store.getUsers() });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -57,7 +56,7 @@ const getUserById = async (req, res) => {
       if (!user) return res.status(404).json({ success: false, message: 'User not found' });
       return res.json({ success: true, user });
     }
-    const memUser = memoryUsers.find((u) => u._id === req.params.id || u.id === req.params.id);
+    const memUser = store.getUsers().find((u) => u._id === req.params.id || u.id === req.params.id);
     if (!memUser) return res.status(404).json({ success: false, message: 'User not found' });
     res.json({ success: true, user: memUser });
   } catch (error) {
@@ -80,14 +79,16 @@ const updateUser = async (req, res) => {
       return res.json({ success: true, user });
     }
 
-    const memUser = memoryUsers.find((u) => u._id === req.params.id || u.id === req.params.id);
-    if (!memUser) return res.status(404).json({ success: false, message: 'User not found' });
-    if (name) memUser.name = name;
-    if (phone !== undefined) memUser.phone = phone;
-    if (bio !== undefined) memUser.bio = bio;
-    if (avatar !== undefined) memUser.avatar = avatar;
-    if (customPhoto !== undefined) memUser.customPhoto = customPhoto;
-    res.json({ success: true, user: memUser });
+    const updates = {};
+    if (name) updates.name = name;
+    if (phone !== undefined) updates.phone = phone;
+    if (bio !== undefined) updates.bio = bio;
+    if (avatar !== undefined) updates.avatar = avatar;
+    if (customPhoto !== undefined) updates.customPhoto = customPhoto;
+
+    const updated = store.updateUser(req.params.id, updates);
+    if (!updated) return res.status(404).json({ success: false, message: 'User not found' });
+    res.json({ success: true, user: updated });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
   }

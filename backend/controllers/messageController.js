@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
 const Message = require('../models/Message');
-
-const memoryMessages = [];
+const store = require('../config/store');
 
 // GET /api/messages?room=general&limit=50
 const getMessages = async (req, res) => {
@@ -25,9 +24,9 @@ const getMessages = async (req, res) => {
       return res.json({ success: true, messages: formatted });
     }
 
-    // In-memory fallback
-    const filtered = memoryMessages
-      .filter((m) => (!room || m.room === room) && !m.deletedAt)
+    // In-memory persistent fallback
+    const filtered = store
+      .getMessages(room)
       .slice(-Number(limit));
 
     res.json({ success: true, messages: filtered });
@@ -67,7 +66,7 @@ const sendMessage = async (req, res) => {
       createdAt: new Date().toISOString(),
     };
     memMsg.id = memMsg._id;
-    memoryMessages.push(memMsg);
+    store.addMessage(memMsg);
 
     res.status(201).json({ success: true, message: memMsg });
   } catch (error) {
@@ -92,11 +91,9 @@ const editMessage = async (req, res) => {
       return res.json({ success: true, message: obj });
     }
 
-    const found = memoryMessages.find((m) => m._id === req.params.id || m.id === req.params.id);
-    if (!found) return res.status(404).json({ success: false, message: 'Message not found' });
-    found.text = text;
-    found.edited = true;
-    res.json({ success: true, message: found });
+    const updated = store.updateMessage(req.params.id, { text, edited: true });
+    if (!updated) return res.status(404).json({ success: false, message: 'Message not found' });
+    res.json({ success: true, message: updated });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
   }
@@ -116,14 +113,28 @@ const deleteMessage = async (req, res) => {
       return res.json({ success: true, message: 'Message deleted' });
     }
 
-    const found = memoryMessages.find((m) => m._id === req.params.id || m.id === req.params.id);
-    if (!found) return res.status(404).json({ success: false, message: 'Message not found' });
-    found.deletedAt = new Date();
+    const success = store.deleteMessage(req.params.id);
+    if (!success) return res.status(404).json({ success: false, message: 'Message not found' });
     res.json({ success: true, message: 'Message deleted' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-module.exports = { getMessages, sendMessage, editMessage, deleteMessage };
+// DELETE /api/messages (clear all messages in room)
+const clearAllMessages = async (req, res) => {
+  try {
+    const { room = 'general' } = req.query;
+    if (mongoose.connection.readyState === 1) {
+      await Message.updateMany({ room, deletedAt: null }, { deletedAt: new Date() });
+    }
+    store.clearMessages(room);
+    res.json({ success: true, message: 'All messages cleared' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+module.exports = { getMessages, sendMessage, editMessage, deleteMessage, clearAllMessages };
+
 
