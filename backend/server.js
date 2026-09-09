@@ -12,20 +12,34 @@ const setupSocketIO = require('./socket/socketHandler');
 const app = express();
 const server = http.createServer(app);
 
+// ─── Allowed Origins & CORS Setup ─────────────────────────────────
+const allowedOrigins = [
+  'https://connect-x-theta.vercel.app',
+  'http://localhost:5173',
+  process.env.CLIENT_URL,
+].filter(Boolean);
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS blocked for origin: ${origin}`));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+};
+
 // ─── Socket.IO Setup ──────────────────────────────────────────────
 const io = new Server(server, {
-  cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    credentials: true,
-  },
+  cors: corsOptions,
+  transports: ['websocket', 'polling'],
 });
 
 // ─── Middleware ───────────────────────────────────────────────────
-app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
-  credentials: true,
-}));
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' })); // limit for base64 photos
 app.use(express.urlencoded({ extended: true }));
 
