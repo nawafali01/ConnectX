@@ -358,10 +358,49 @@
   transition: all var(--trans-fast);
 }
 
-.btn-emoji-toggle:hover {
+.btn-emoji-toggle:hover,
+.btn-emoji-toggle.active {
   color: var(--primary-700);
+  background: rgba(124, 58, 237, 0.12);
   transform: scale(1.15);
 }
+
+/* Floating Emoji Picker Popup */
+.emoji-picker-popup {
+  position: absolute;
+  bottom: 74px;
+  left: 16px;
+  z-index: 1000;
+  border-radius: 16px;
+  box-shadow: 0 16px 40px rgba(76, 29, 149, 0.22), 0 4px 16px rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(124, 58, 237, 0.2);
+  animation: emojiPopIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+@keyframes emojiPopIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 480px) {
+  .emoji-picker-popup {
+    left: 8px;
+    right: 8px;
+    bottom: 70px;
+  }
+  .emoji-picker-popup aside.EmojiPickerReact {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
 
 .btn-send-message {
   width: 44px;

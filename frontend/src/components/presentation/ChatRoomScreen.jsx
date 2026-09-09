@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import EmojiPicker from 'emoji-picker-react';
 import { LogoIcon } from '../../svgs/LogoIcon';
 import { SendIcon } from '../../svgs/SendIcon';
 import { UserPlusIcon } from '../../svgs/UserPlusIcon';
@@ -36,10 +37,30 @@ export const ChatRoomScreen = ({
   const messagesEndRef = useRef(null);
   const typingTimerRef = useRef(null);
 
+  const emojiPickerRef = useRef(null);
+  const emojiButtonRef = useRef(null);
+
   // Auto-scroll to latest message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
+
+  // Close emoji picker when clicking outside
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (
+        showEmojiPicker &&
+        emojiPickerRef.current &&
+        !emojiPickerRef.current.contains(e.target) &&
+        emojiButtonRef.current &&
+        !emojiButtonRef.current.contains(e.target)
+      ) {
+        setShowEmojiPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [showEmojiPicker]);
 
   const handleInputChange = (e) => {
     const val = e.target.value;
@@ -65,10 +86,14 @@ export const ChatRoomScreen = ({
 
     onSendMessage(inputText.trim());
     setInputText('');
+    setShowEmojiPicker(false);
   };
 
-  const handleEmojiClick = (emoji) => {
-    setInputText((prev) => prev + emoji);
+  const handleEmojiClick = (emojiData) => {
+    const emojiChar = typeof emojiData === 'string' ? emojiData : emojiData?.emoji;
+    if (emojiChar) {
+      setInputText((prev) => prev + emojiChar);
+    }
   };
 
   return (
@@ -160,19 +185,17 @@ export const ChatRoomScreen = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Quick Emojis Drawer */}
+      {/* Floating Emoji Picker Popup */}
       {showEmojiPicker && (
-        <div className="quick-emojis-bar">
-          {QUICK_EMOJIS.map((emoji) => (
-            <button
-              key={emoji}
-              type="button"
-              className="quick-emoji-chip"
-              onClick={() => handleEmojiClick(emoji)}
-            >
-              {emoji}
-            </button>
-          ))}
+        <div ref={emojiPickerRef} className="emoji-picker-popup">
+          <EmojiPicker
+            onEmojiClick={handleEmojiClick}
+            theme="auto"
+            width={320}
+            height={390}
+            searchDisabled={false}
+            previewConfig={{ showPreview: false }}
+          />
         </div>
       )}
 
@@ -180,11 +203,12 @@ export const ChatRoomScreen = ({
       <form className="chat-toolbar" onSubmit={handleSend}>
         <div className="chat-input-pill">
           <button
+            ref={emojiButtonRef}
             type="button"
-            className="btn-emoji-toggle"
+            className={`btn-emoji-toggle ${showEmojiPicker ? 'active' : ''}`}
             onClick={() => setShowEmojiPicker((prev) => !prev)}
             aria-label="Toggle emojis"
-            title="Quick emojis"
+            title="Choose emojis"
           >
             <SmileIcon size={20} />
           </button>
