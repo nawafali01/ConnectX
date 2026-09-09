@@ -92,6 +92,22 @@ export const api = {
       return { success: false, message: err.message };
     }
   },
+
+  uploadMedia: async (file) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch(`${API_BASE_URL}/messages/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+      return await res.json();
+    } catch (err) {
+      console.error('API uploadMedia error:', err);
+      return { success: false, message: err.message };
+    }
+  },
 };
 
 export default api;

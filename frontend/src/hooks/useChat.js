@@ -81,7 +81,7 @@ export const useChat = (activeUser) => {
           (m) =>
             m.isOptimistic &&
             String(m.senderId) === String(formatted.senderId) &&
-            m.text === formatted.text
+            ((formatted.text && m.text === formatted.text) || (formatted.mediaUrl && m.mediaUrl === formatted.mediaUrl))
         );
         if (optimisticIdx !== -1) {
           const updated = [...prev];
@@ -184,10 +184,13 @@ export const useChat = (activeUser) => {
    * Send a new message with optimistic UI display
    */
   const sendMessage = useCallback(
-    (text) => {
-      if (!text || !text.trim() || !activeUserRef.current) return null;
+    (text, media = null) => {
+      const trimmed = typeof text === 'string' ? text.trim() : '';
+      const mediaUrl = media?.mediaUrl || media?.url || null;
+      const mediaType = media?.mediaType || (mediaUrl ? 'image' : null);
 
-      const trimmed = text.trim();
+      if ((!trimmed && !mediaUrl) || !activeUserRef.current) return null;
+
       const localId = 'opt_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
 
       const messageData = {
@@ -197,6 +200,8 @@ export const useChat = (activeUser) => {
         senderAvatar: activeUserRef.current.avatar,
         senderCustomPhoto: activeUserRef.current.customPhoto || null,
         text: trimmed,
+        mediaUrl,
+        mediaType,
         room: 'general',
         status: 'sent',
         createdAt: new Date().toISOString(),
@@ -214,6 +219,8 @@ export const useChat = (activeUser) => {
         senderAvatar: messageData.senderAvatar,
         senderCustomPhoto: messageData.senderCustomPhoto,
         text: messageData.text,
+        mediaUrl: messageData.mediaUrl,
+        mediaType: messageData.mediaType,
         room: messageData.room,
       });
 

@@ -148,7 +148,19 @@ export const MessageBubble = ({
 
           {/* Bubble */}
           <div className="msg-bubble">
-            <p>{message.text}</p>
+            {message.mediaUrl && (
+              <div className="msg-media-wrapper">
+                <img
+                  src={message.mediaUrl}
+                  alt="Chat attachment"
+                  className="msg-media-img"
+                  loading="lazy"
+                  onClick={() => window.open(message.mediaUrl, '_blank', 'noopener,noreferrer')}
+                  title="Click to view full size image"
+                />
+              </div>
+            )}
+            {message.text ? <p className="msg-text">{message.text}</p> : null}
             <div className="msg-footer">
               {message.edited && <span className="msg-edited-tag">edited</span>}
               <span className="msg-time">

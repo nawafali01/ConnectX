@@ -4,11 +4,13 @@ import { LogoIcon } from '../../svgs/LogoIcon';
 import { SendIcon } from '../../svgs/SendIcon';
 import { UserPlusIcon } from '../../svgs/UserPlusIcon';
 import { SmileIcon } from '../../svgs/SmileIcon';
+import { PlusIcon } from '../../svgs/PlusIcon';
 import { MessageBubble } from './MessageBubble';
 import { UserSwitcherModal } from './UserSwitcherModal';
 import { EditProfileModal } from '../modals/EditProfileModal';
 import { EditMessageModal } from '../modals/EditMessageModal';
 import { APP_CONFIG } from '../../constants/appConfig';
+import { api } from '../../services/api';
 
 const QUICK_EMOJIS = ['👋', '😊', '🔥', '🚀', '💜', '🎉', '👍', '💯'];
 
@@ -34,16 +36,29 @@ export const ChatRoomScreen = ({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editingMessage, setEditingMessage] = useState(null);
+
+  // Media Attachment State
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [filePreview, setFilePreview] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+
   const messagesEndRef = useRef(null);
   const typingTimerRef = useRef(null);
-
   const emojiPickerRef = useRef(null);
   const emojiButtonRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   // Auto-scroll to latest message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
+
+  // Clean up object URL on unmount
+  useEffect(() => {
+    return () => {
+      if (filePreview) URL.revokeObjectURL(filePreview);
+    };
+  }, [filePreview]);
 
   // Close emoji picker when clicking outside
   useEffect(() => {
@@ -77,16 +92,70 @@ export const ChatRoomScreen = ({
     }
   };
 
-  const handleSend = (e) => {
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file (JPEG, PNG, WebP, GIF, SVG).');
+      return;
+    }
+
+    if (file.size > 15 * 1024 * 1024) {
+      alert('File size exceeds 15MB limit.');
+      return;
+    }
+
+    if (filePreview) URL.revokeObjectURL(filePreview);
+    setSelectedFile(file);
+    setFilePreview(URL.createObjectURL(file));
+  };
+
+  const handleClearAttachment = () => {
+    if (filePreview) URL.revokeObjectURL(filePreview);
+    setSelectedFile(null);
+    setFilePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleSend = async (e) => {
     e?.preventDefault();
-    if (!inputText.trim()) return;
+    if (isUploading) return;
+    if (!inputText.trim() && !selectedFile) return;
 
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
     onTypingStop?.();
 
-    onSendMessage(inputText.trim());
-    setInputText('');
-    setShowEmojiPicker(false);
+    const textToSend = inputText.trim();
+
+    if (selectedFile) {
+      setIsUploading(true);
+      try {
+        const uploadRes = await api.uploadMedia(selectedFile);
+        if (uploadRes && uploadRes.success && uploadRes.url) {
+          onSendMessage(textToSend, {
+            mediaUrl: uploadRes.url,
+            mediaType: uploadRes.mediaType || 'image',
+          });
+          handleClearAttachment();
+          setInputText('');
+          setShowEmojiPicker(false);
+        } else {
+          alert(uploadRes?.message || 'Failed to upload image. Please try again.');
+        }
+      } catch (err) {
+        console.error('Error sending media message:', err);
+        alert('Failed to upload image.');
+      } finally {
+        setIsUploading(false);
+      }
+    } else {
+      onSendMessage(textToSend);
+      setInputText('');
+      setShowEmojiPicker(false);
+    }
   };
 
   const handleEmojiClick = (emojiData) => {
@@ -199,9 +268,59 @@ export const ChatRoomScreen = ({
         </div>
       )}
 
+      {/* Attachment Preview Banner */}
+      {filePreview && (
+        <div className="attachment-preview-bar">
+          <div className="attachment-preview-thumb-box">
+            <img src={filePreview} alt="Selected asset" className="attachment-preview-thumb" />
+            {isUploading && (
+              <div className="attachment-uploading-overlay">
+                <div className="attachment-spinner" />
+              </div>
+            )}
+          </div>
+          <div className="attachment-preview-info">
+            <span className="attachment-filename">{selectedFile?.name}</span>
+            <span className="attachment-filesize">
+              {isUploading ? 'Uploading to Cloudinary...' : `${(selectedFile.size / 1024).toFixed(1)} KB`}
+            </span>
+          </div>
+          {!isUploading && (
+            <button
+              type="button"
+              className="attachment-btn-remove"
+              onClick={handleClearAttachment}
+              aria-label="Remove attachment"
+              title="Remove attachment"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Message Input Toolbar */}
       <form className="chat-toolbar" onSubmit={handleSend}>
         <div className="chat-input-pill">
+          {/* Plus button for attachments */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={handleFileSelect}
+          />
+          <button
+            type="button"
+            className="btn-attach-toggle"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            aria-label="Attach asset or image"
+            title="Attach image"
+          >
+            <PlusIcon size={19} />
+          </button>
+
           <button
             ref={emojiButtonRef}
             type="button"
@@ -218,12 +337,15 @@ export const ChatRoomScreen = ({
             type="text"
             className="chat-text-input"
             placeholder={
-              activeUser
+              selectedFile
+                ? 'Add a caption...'
+                : activeUser
                 ? `Message as ${activeUser.name}...`
                 : 'Type your message...'
             }
             value={inputText}
             onChange={handleInputChange}
+            disabled={isUploading}
             autoComplete="off"
           />
         </div>
@@ -232,10 +354,15 @@ export const ChatRoomScreen = ({
           id="btn-send-message"
           type="submit"
           className="btn-send-message"
-          disabled={!inputText.trim()}
+          disabled={isUploading || (!inputText.trim() && !selectedFile)}
           aria-label="Send message"
+          title={isUploading ? 'Uploading...' : 'Send message'}
         >
-          <SendIcon size={18} color="#ffffff" />
+          {isUploading ? (
+            <div className="btn-send-spinner" />
+          ) : (
+            <SendIcon size={18} color="#ffffff" />
+          )}
         </button>
       </form>
 

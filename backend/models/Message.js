@@ -20,9 +20,17 @@ const messageSchema = new mongoose.Schema(
     },
     text: {
       type: String,
-      required: [true, 'Message text is required'],
       trim: true,
       maxlength: 2000,
+      default: '',
+    },
+    mediaUrl: {
+      type: String,
+      default: null,
+    },
+    mediaType: {
+      type: String,
+      default: null,
     },
     room: {
       type: String,

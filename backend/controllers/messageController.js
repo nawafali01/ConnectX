@@ -1,6 +1,8 @@
+const fs = require('fs');
 const mongoose = require('mongoose');
 const Message = require('../models/Message');
 const store = require('../config/store');
+const cloudinary = require('../config/cloudinary');
 
 // GET /api/messages?room=general&limit=50
 const getMessages = async (req, res) => {
@@ -35,10 +37,48 @@ const getMessages = async (req, res) => {
   }
 };
 
+// POST /api/messages/upload
+const uploadMedia = async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: 'No file uploaded' });
+  }
+
+  const filePath = req.file.path;
+
+  try {
+    // Upload local temporary file to Cloudinary
+    const result = await cloudinary.uploader.upload(filePath, {
+      folder: 'connectx_media',
+      resource_type: 'auto',
+    });
+
+    res.json({
+      success: true,
+      url: result.secure_url,
+      public_id: result.public_id,
+      format: result.format,
+      mediaType: result.resource_type || 'image',
+    });
+  } catch (error) {
+    console.error('Cloudinary upload error:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to upload to Cloudinary' });
+  } finally {
+    // Crucial: always delete the temporary file from local disk to keep project clean!
+    try {
+      if (fs.existsSync(filePath)) {
+        await fs.promises.unlink(filePath);
+        console.log(`🧹 Deleted temp file: ${filePath}`);
+      }
+    } catch (cleanupErr) {
+      console.warn(`⚠️ Warning: could not delete temp file ${filePath}:`, cleanupErr.message);
+    }
+  }
+};
+
 // POST /api/messages
 const sendMessage = async (req, res) => {
   try {
-    const { senderId, senderName, senderAvatar, senderCustomPhoto, text, room } = req.body;
+    const { senderId, senderName, senderAvatar, senderCustomPhoto, text, mediaUrl, mediaType, room } = req.body;
 
     if (mongoose.connection.readyState === 1) {
       const message = await Message.create({
@@ -46,7 +86,9 @@ const sendMessage = async (req, res) => {
         senderName,
         senderAvatar,
         senderCustomPhoto,
-        text,
+        text: text || '',
+        mediaUrl: mediaUrl || null,
+        mediaType: mediaType || (mediaUrl ? 'image' : null),
         room: room || 'general',
       });
       const obj = message.toObject();
@@ -60,7 +102,9 @@ const sendMessage = async (req, res) => {
       senderName,
       senderAvatar,
       senderCustomPhoto,
-      text,
+      text: text || '',
+      mediaUrl: mediaUrl || null,
+      mediaType: mediaType || (mediaUrl ? 'image' : null),
       room: room || 'general',
       status: 'sent',
       createdAt: new Date().toISOString(),
@@ -135,6 +179,6 @@ const clearAllMessages = async (req, res) => {
   }
 };
 
-module.exports = { getMessages, sendMessage, editMessage, deleteMessage, clearAllMessages };
+module.exports = { getMessages, uploadMedia, sendMessage, editMessage, deleteMessage, clearAllMessages };
 
 

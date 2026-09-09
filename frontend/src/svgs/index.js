@@ -9,3 +9,4 @@ export { SparklesIcon } from './SparklesIcon';
 export { EditIcon } from './EditIcon';
 export { SmileIcon } from './SmileIcon';
 export { ChatDotsIcon } from './ChatDotsIcon';
+export { PlusIcon } from './PlusIcon';

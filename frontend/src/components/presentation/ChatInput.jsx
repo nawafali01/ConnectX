@@ -5,15 +5,25 @@ export default function ChatInput({
   message,
   setMessage,
   onSend,
+  onAttach,
   placeholder = 'Message as...',
   disabled = false,
 }) {
   const [showPicker, setShowPicker] = useState(false);
   const pickerRef = useRef(null);
   const buttonRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const handleEmojiClick = (emojiData) => {
     setMessage((prev) => (typeof prev === 'string' ? prev + emojiData.emoji : emojiData.emoji));
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      onAttach?.(file);
+      e.target.value = '';
+    }
   };
 
   // Close picker when clicking outside
@@ -81,6 +91,39 @@ export default function ChatInput({
           boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
         }}
       >
+        {onAttach && (
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={handleFileChange}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="text-gray-500 hover:text-gray-700 btn-attach-trigger"
+              style={{
+                background: 'none',
+                border: 'none',
+                fontSize: '1.3rem',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                padding: '2px',
+                lineHeight: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#7c3aed',
+              }}
+              title="Attach asset or image"
+              aria-label="Attach asset or image"
+            >
+              +
+            </button>
+          </>
+        )}
         <button
           ref={buttonRef}
           type="button"
