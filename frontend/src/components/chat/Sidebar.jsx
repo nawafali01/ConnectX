@@ -165,22 +165,23 @@ export const Sidebar = ({
 
       {/* 2. Search Bar */}
       <div className="px-3 pt-3 pb-2">
-        <div className="relative flex items-center">
-          <Search
-            size={16}
-            className="absolute left-3 text-slate-400 pointer-events-none"
-          />
+        <div className="relative flex items-center w-full">
+          <div className="absolute left-3.5 flex items-center pointer-events-none text-slate-400 z-10">
+            <Search size={16} />
+          </div>
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search contacts & chats..."
-            className="w-full h-9 pl-9 pr-8 bg-slate-850 bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl text-xs text-slate-100 placeholder-slate-400 outline-none transition-all shadow-inner"
+            style={{ paddingLeft: '42px', paddingRight: '34px' }}
+            className="w-full h-10 bg-slate-800/90 border border-slate-700/90 focus:border-violet-500 rounded-xl text-xs text-slate-100 placeholder-slate-400 outline-none transition-all shadow-inner"
           />
           {searchQuery && (
             <button
+              type="button"
               onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 text-slate-400 hover:text-slate-200 p-0.5"
+              className="absolute right-2.5 flex items-center text-slate-400 hover:text-slate-200 p-1 z-10"
             >
               <X size={14} />
             </button>

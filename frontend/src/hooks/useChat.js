@@ -8,13 +8,12 @@ export const useChat = (activeUser) => {
   const [messages, setMessages] = useState(() => {
     const saved = getStoredMessages();
     if (Array.isArray(saved) && saved.length > 0) {
-      // Merge initial demo messages if not already present
-      const map = new Map();
-      INITIAL_MESSAGES.forEach((m) => map.set(m.id, m));
-      saved.forEach((m) => map.set(m.id || m._id, m));
-      return Array.from(map.values());
+      return saved.filter((m) => {
+        const id = String(m.id || m._id || '');
+        return !id.startsWith('msg_gen_') && !id.startsWith('msg_des_') && !id.startsWith('msg_dm_');
+      });
     }
-    return INITIAL_MESSAGES;
+    return [];
   });
 
   const [activeConversationId, setActiveConversationId] = useState('general');

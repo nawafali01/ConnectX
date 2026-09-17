@@ -6,7 +6,7 @@ import {
   saveStoredActiveUserId,
 } from '../functions/storage';
 import { generateId } from '../functions/idGenerator';
-import { DEMO_USERS, INITIAL_BOT_USER, INITIAL_GROUPS } from '../constants/initialData';
+import { INITIAL_BOT_USER, INITIAL_GROUPS } from '../constants/initialData';
 import { DEFAULT_AVATAR } from '../constants/avatars';
 import { api } from '../services/api';
 
@@ -16,21 +16,21 @@ export const useUserManagement = () => {
   const [users, setUsers] = useState(() => {
     const saved = getStoredUsers();
     if (saved && saved.length > 0) {
-      // Ensure all demo users exist
-      const map = new Map();
-      DEMO_USERS.forEach((u) => map.set(u.id, u));
-      saved.forEach((u) => map.set(u.id, { ...map.get(u.id), ...u }));
-      return Array.from(map.values());
+      // Filter out any leftover fake demo users
+      const cleanUsers = saved.filter(
+        (u) => !['user-alice', 'user-bob', 'user-charlie', 'user-diana'].includes(u.id)
+      );
+      if (cleanUsers.length > 0) return cleanUsers;
     }
-    return DEMO_USERS;
+    return [INITIAL_BOT_USER];
   });
 
   const [activeUserId, setActiveUserId] = useState(() => {
     const savedId = getStoredActiveUserId();
-    if (savedId && users.some((u) => u.id === savedId)) {
+    if (savedId && !['user-alice', 'user-bob', 'user-charlie', 'user-diana'].includes(savedId)) {
       return savedId;
     }
-    return DEMO_USERS[0].id;
+    return null;
   });
 
   // Groups state

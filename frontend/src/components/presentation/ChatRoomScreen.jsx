@@ -118,13 +118,10 @@ export const ChatRoomScreen = ({
 
   return (
     <div className="w-full h-full flex flex-col bg-slate-950 text-slate-100 overflow-hidden font-sans">
-      {/* 1. Global Top Bar with Perspective Switcher */}
+      {/* 1. Global Centered Header */}
       <TopNav
-        users={users}
         activeUser={activeUser}
-        onSwitchUser={onSwitchUser}
-        onAddNewUser={onAddNewUser}
-        onlineUsers={onlineUsers}
+        onOpenProfile={() => setShowEditProfile(true)}
       />
 
       {/* 2. Main 3-Column WhatsApp-Style Responsive Work Area */}

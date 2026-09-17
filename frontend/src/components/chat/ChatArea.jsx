@@ -160,13 +160,14 @@ export const ChatArea = ({
           </div>
         </div>
 
-        {/* Action Icons */}
-        <div className="flex items-center gap-0.5 sm:gap-1 text-slate-400">
+        {/* Action Icons - Professional Spacing & Rounded Button Badges */}
+        <div className="flex items-center gap-2 sm:gap-2.5 text-slate-300">
           <button
             type="button"
             onClick={() => alert(`Starting voice call with ${conversation.name}...`)}
-            className="p-2 rounded-xl hover:text-slate-100 hover:bg-slate-800 transition-colors hidden sm:inline-flex"
-            title="Voice call"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 hover:border-violet-500/50 hover:text-violet-300 text-slate-300 transition-all shadow-sm flex items-center justify-center active:scale-95 hidden sm:inline-flex"
+            title="Start voice call"
+            aria-label="Voice call"
           >
             <Phone size={17} />
           </button>
@@ -174,8 +175,9 @@ export const ChatArea = ({
           <button
             type="button"
             onClick={() => alert(`Starting video call with ${conversation.name}...`)}
-            className="p-2 rounded-xl hover:text-slate-100 hover:bg-slate-800 transition-colors hidden sm:inline-flex"
-            title="Video call"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 hover:border-violet-500/50 hover:text-violet-300 text-slate-300 transition-all shadow-sm flex items-center justify-center active:scale-95 hidden sm:inline-flex"
+            title="Start video call"
+            aria-label="Video call"
           >
             <Video size={17} />
           </button>
@@ -184,7 +186,7 @@ export const ChatArea = ({
             id="btn-toggle-chat-details"
             type="button"
             onClick={onToggleDetails}
-            className="p-2 rounded-xl hover:text-violet-300 hover:bg-slate-800 transition-colors"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 hover:border-violet-500/50 hover:text-violet-300 text-slate-300 transition-all shadow-sm flex items-center justify-center active:scale-95"
             title="Chat info & shared media"
             aria-label="Toggle Details Drawer"
           >
