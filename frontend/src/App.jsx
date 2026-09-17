@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Agentation } from 'agentation';
 import { WelcomeScreen } from './components/presentation/WelcomeScreen';
 import { UserFormScreen } from './components/presentation/UserFormScreen';
 import { ProfileScreen } from './components/presentation/ProfileScreen';
@@ -177,6 +178,9 @@ export default function App() {
           />
         )}
       </main>
+
+      {/* Agentation Visual Feedback Layer for AI Agents (in dev mode) */}
+      {(import.meta.env?.DEV || process.env.NODE_ENV === 'development') && <Agentation />}
     </div>
   );
 }
