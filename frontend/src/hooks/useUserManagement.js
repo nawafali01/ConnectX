@@ -39,7 +39,16 @@ export const useUserManagement = () => {
       const saved = localStorage.getItem(GROUPS_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const clean = parsed.filter(
+            (g) =>
+              g.id !== 'group_design' &&
+              g.id !== 'group_eng' &&
+              !g.name?.includes('Design & UI') &&
+              !g.name?.includes('Frontend & Backend')
+          );
+          if (clean.length > 0) return clean;
+        }
       }
     } catch (e) {}
     return INITIAL_GROUPS;

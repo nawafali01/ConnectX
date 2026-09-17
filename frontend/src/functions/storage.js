@@ -1,5 +1,5 @@
 /**
- * Local storage abstraction layer with safe fallback.
+ * Local storage abstraction layer with safe fallback and automated fake-data sanitization.
  */
 
 const STORAGE_KEYS = {
@@ -8,10 +8,29 @@ const STORAGE_KEYS = {
   MESSAGES: 'connectx_messages',
 };
 
+const FAKE_USER_IDS = ['user-alice', 'user-bob', 'user-charlie', 'user-diana'];
+const FAKE_USER_NAMES = ['alice johnson', 'bob smith', 'charlie brown', 'diana prince'];
+
+export const isFakeUser = (u) => {
+  if (!u) return true;
+  const id = String(u.id || u._id || '').toLowerCase();
+  const name = String(u.name || '').trim().toLowerCase();
+  if (FAKE_USER_IDS.some((f) => id.includes(f))) return true;
+  if (FAKE_USER_NAMES.some((f) => name === f)) return true;
+  return false;
+};
+
 export const getStoredUsers = () => {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.USERS);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    const sanitized = parsed.filter((u) => !isFakeUser(u));
+    if (sanitized.length !== parsed.length) {
+      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(sanitized));
+    }
+    return sanitized;
   } catch (err) {
     console.error('Error reading users from storage:', err);
     return [];
@@ -20,7 +39,8 @@ export const getStoredUsers = () => {
 
 export const saveStoredUsers = (users) => {
   try {
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+    const clean = (users || []).filter((u) => !isFakeUser(u));
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(clean));
   } catch (err) {
     console.error('Error saving users to storage:', err);
   }
@@ -28,7 +48,12 @@ export const saveStoredUsers = (users) => {
 
 export const getStoredActiveUserId = () => {
   try {
-    return localStorage.getItem(STORAGE_KEYS.ACTIVE_USER_ID) || null;
+    const id = localStorage.getItem(STORAGE_KEYS.ACTIVE_USER_ID);
+    if (id && FAKE_USER_IDS.some((f) => id.toLowerCase().includes(f))) {
+      localStorage.removeItem(STORAGE_KEYS.ACTIVE_USER_ID);
+      return null;
+    }
+    return id || null;
   } catch (err) {
     return null;
   }
@@ -36,7 +61,7 @@ export const getStoredActiveUserId = () => {
 
 export const saveStoredActiveUserId = (userId) => {
   try {
-    if (userId) {
+    if (userId && !FAKE_USER_IDS.some((f) => String(userId).toLowerCase().includes(f))) {
       localStorage.setItem(STORAGE_KEYS.ACTIVE_USER_ID, userId);
     } else {
       localStorage.removeItem(STORAGE_KEYS.ACTIVE_USER_ID);
@@ -49,7 +74,22 @@ export const saveStoredActiveUserId = (userId) => {
 export const getStoredMessages = () => {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.MESSAGES);
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+    const sanitized = parsed.filter((m) => {
+      const id = String(m.id || m._id || '');
+      if (id.startsWith('msg_gen_') || id.startsWith('msg_des_') || id.startsWith('msg_dm_')) return false;
+      const sId = String(m.senderId || '').toLowerCase();
+      if (FAKE_USER_IDS.some((f) => sId.includes(f))) return false;
+      const sName = String(m.senderName || '').trim().toLowerCase();
+      if (FAKE_USER_NAMES.some((f) => sName === f)) return false;
+      return true;
+    });
+    if (sanitized.length !== parsed.length) {
+      localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(sanitized));
+    }
+    return sanitized;
   } catch (err) {
     console.error('Error reading messages from storage:', err);
     return null;
@@ -58,7 +98,16 @@ export const getStoredMessages = () => {
 
 export const saveStoredMessages = (messages) => {
   try {
-    localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(messages));
+    const clean = (messages || []).filter((m) => {
+      const id = String(m.id || m._id || '');
+      if (id.startsWith('msg_gen_') || id.startsWith('msg_des_') || id.startsWith('msg_dm_')) return false;
+      const sId = String(m.senderId || '').toLowerCase();
+      if (FAKE_USER_IDS.some((f) => sId.includes(f))) return false;
+      const sName = String(m.senderName || '').trim().toLowerCase();
+      if (FAKE_USER_NAMES.some((f) => sName === f)) return false;
+      return true;
+    });
+    localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(clean));
   } catch (err) {
     console.error('Error saving messages to storage:', err);
   }
@@ -69,6 +118,7 @@ export const clearAllStorage = () => {
     localStorage.removeItem(STORAGE_KEYS.USERS);
     localStorage.removeItem(STORAGE_KEYS.ACTIVE_USER_ID);
     localStorage.removeItem(STORAGE_KEYS.MESSAGES);
+    localStorage.removeItem('connectx_groups');
   } catch (err) {
     console.error('Error clearing storage:', err);
   }
