@@ -2,12 +2,12 @@
    THEME CUSTOMIZER - Floating FAB + Slide-in Panel
    ======================================================== */
 
-/* Wrapper — sits outside the glass card, positioned fixed */
+/* Wrapper — sits discreetly at bottom right above input bar */
 .theme-customizer-wrapper {
   position: fixed;
-  bottom: 24px;
-  right: 24px;
-  z-index: 9999;
+  bottom: 80px;
+  right: 18px;
+  z-index: 40;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -16,12 +16,12 @@
 
 /* ── Floating Action Button ── */
 .theme-fab-btn {
-  width: 52px;
-  height: 52px;
-  border-radius: 18px;
-  border: none;
-  background: #ffffff;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(0, 0, 0, 0.07);
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  border: 1px solid rgba(124, 58, 237, 0.3);
+  background: #1e1538;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   cursor: pointer;
   display: flex;
   align-items: center;

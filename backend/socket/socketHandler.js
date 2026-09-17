@@ -34,6 +34,21 @@ const setupSocketIO = (io) => {
       }
     });
 
+    // ─── Join specific room (group or DM) ───────────────────────────
+    socket.on('room:join', ({ room }) => {
+      if (room) {
+        socket.join(room);
+        console.log(`🚪 Socket ${socket.id} joined room: ${room}`);
+      }
+    });
+
+    socket.on('room:leave', ({ room }) => {
+      if (room) {
+        socket.leave(room);
+        console.log(`🚪 Socket ${socket.id} left room: ${room}`);
+      }
+    });
+
     // ─── Send a new message ────────────────────────────────────────
     socket.on('message:send', async (data) => {
       try {

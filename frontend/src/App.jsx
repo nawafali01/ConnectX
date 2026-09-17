@@ -24,16 +24,12 @@ export default function App() {
   const [currentScreen, setCurrentScreen] = useState(() => {
     try {
       const savedScreen = localStorage.getItem('connectx_current_screen');
-      const savedUserId = localStorage.getItem('connectx_active_user_id');
       if (savedScreen && Object.values(SCREENS).includes(savedScreen)) {
-        if (savedScreen === SCREENS.CHAT && !savedUserId) {
-          return SCREENS.WELCOME;
-        }
         return savedScreen;
       }
-      if (savedUserId) return SCREENS.CHAT;
     } catch (e) {}
-    return SCREENS.WELCOME;
+    // Default directly to full-screen production chat
+    return SCREENS.CHAT;
   });
 
   const [isSecondUserMode, setIsSecondUserMode] = useState(false);
@@ -52,17 +48,26 @@ export default function App() {
     users,
     humanUsers,
     activeUser,
+    groups,
     registerUser,
     updateUserProfile,
     switchActiveUser,
+    createGroup,
+    leaveGroup,
   } = useUserManagement();
 
   const {
     messages,
+    activeMessages,
+    activeConversationId,
+    selectConversation,
     onlineUsers,
+    unreadCounts,
     sendMessage,
     deleteMessage,
     editMessage,
+    toggleReaction,
+    clearChat,
     isTyping,
     typingUserName,
     sendTypingStart,
@@ -77,12 +82,8 @@ export default function App() {
 
   const handleFormSubmit = async (formData) => {
     await registerUser(formData);
-    if (isSecondUserMode) {
-      setIsSecondUserMode(false);
-      setCurrentScreen(SCREENS.CHAT);
-    } else {
-      setCurrentScreen(SCREENS.PROFILE);
-    }
+    setIsSecondUserMode(false);
+    setCurrentScreen(SCREENS.CHAT);
   };
 
   const handleProfileEnterChat = () => {
@@ -100,54 +101,63 @@ export default function App() {
   };
 
   return (
-    <div className="app-viewport">
-      {/* Background ambient lighting effects — commented out */}
-      {/* <div className="bg-ambient-orb orb-top-left" /> */}
-      {/* <div className="bg-ambient-orb orb-bottom-right" /> */}
-
-      {/* Floating Theme Customizer */}
+    <div className="w-screen h-[100dvh] overflow-hidden bg-slate-950 text-slate-100 flex flex-col relative font-sans">
+      {/* Floating Theme Customizer - accessible from settings/corner */}
       <ThemeCustomizer
         theme={theme}
         onSetColors={setColors}
         onApplyPreset={applyPreset}
       />
 
-      {/* Main Glassmorphism Card Frame */}
-      <main className="glass-container">
+      {/* Main Screen Router */}
+      <main className="w-full h-full flex flex-col overflow-hidden">
         {currentScreen === SCREENS.WELCOME && (
-          <WelcomeScreen onNext={handleWelcomeNext} />
+          <div className="w-full h-full flex items-center justify-center p-4 bg-slate-950">
+            <div className="w-full max-w-md glass-container p-6 rounded-3xl">
+              <WelcomeScreen onNext={handleWelcomeNext} />
+            </div>
+          </div>
         )}
 
         {currentScreen === SCREENS.FORM && (
-          <UserFormScreen
-            onSubmit={handleFormSubmit}
-            onBack={
-              isSecondUserMode
-                ? () => {
-                    setIsSecondUserMode(false);
-                    setCurrentScreen(SCREENS.CHAT);
-                  }
-                : () => setCurrentScreen(SCREENS.WELCOME)
-            }
-            initialValues={!isSecondUserMode && activeUser ? activeUser : null}
-            isSecondUser={isSecondUserMode}
-          />
+          <div className="w-full h-full flex items-center justify-center p-4 bg-slate-950">
+            <div className="w-full max-w-lg glass-container p-6 rounded-3xl">
+              <UserFormScreen
+                onSubmit={handleFormSubmit}
+                onBack={() => {
+                  setIsSecondUserMode(false);
+                  setCurrentScreen(SCREENS.CHAT);
+                }}
+                initialValues={!isSecondUserMode && activeUser ? activeUser : null}
+                isSecondUser={isSecondUserMode}
+              />
+            </div>
+          </div>
         )}
 
         {currentScreen === SCREENS.PROFILE && (
-          <ProfileScreen
-            user={activeUser}
-            onEnterChat={handleProfileEnterChat}
-            onEditProfile={handleEditProfile}
-          />
+          <div className="w-full h-full flex items-center justify-center p-4 bg-slate-950">
+            <div className="w-full max-w-md glass-container p-6 rounded-3xl">
+              <ProfileScreen
+                user={activeUser}
+                onEnterChat={handleProfileEnterChat}
+                onEditProfile={handleEditProfile}
+              />
+            </div>
+          </div>
         )}
 
         {currentScreen === SCREENS.CHAT && (
           <ChatRoomScreen
             activeUser={activeUser}
             users={users}
+            groups={groups}
             messages={messages}
+            activeMessages={activeMessages}
+            activeConversationId={activeConversationId}
+            onSelectConversation={selectConversation}
             onlineUsers={onlineUsers}
+            unreadCounts={unreadCounts}
             isTyping={isTyping}
             typingUserName={typingUserName}
             onTypingStart={sendTypingStart}
@@ -155,12 +165,15 @@ export default function App() {
             onSendMessage={sendMessage}
             onSwitchUser={switchActiveUser}
             onAddNewUser={handleAddNewUserFromChat}
-            onViewProfile={() => setCurrentScreen(SCREENS.PROFILE)}
             onSaveProfile={(updatedData) => {
               if (activeUser) updateUserProfile(activeUser.id, updatedData);
             }}
             onDeleteMessage={deleteMessage}
             onEditMessage={editMessage}
+            onToggleReaction={toggleReaction}
+            onClearChat={clearChat}
+            onCreateGroup={createGroup}
+            onLeaveGroup={leaveGroup}
           />
         )}
       </main>

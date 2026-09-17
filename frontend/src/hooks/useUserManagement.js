@@ -6,23 +6,51 @@ import {
   saveStoredActiveUserId,
 } from '../functions/storage';
 import { generateId } from '../functions/idGenerator';
-import { INITIAL_BOT_USER } from '../constants/initialData';
+import { DEMO_USERS, INITIAL_BOT_USER, INITIAL_GROUPS } from '../constants/initialData';
 import { DEFAULT_AVATAR } from '../constants/avatars';
 import { api } from '../services/api';
+
+const GROUPS_STORAGE_KEY = 'connectx_groups';
 
 export const useUserManagement = () => {
   const [users, setUsers] = useState(() => {
     const saved = getStoredUsers();
     if (saved && saved.length > 0) {
-      return saved;
+      // Ensure all demo users exist
+      const map = new Map();
+      DEMO_USERS.forEach((u) => map.set(u.id, u));
+      saved.forEach((u) => map.set(u.id, { ...map.get(u.id), ...u }));
+      return Array.from(map.values());
     }
-    return [INITIAL_BOT_USER];
+    return DEMO_USERS;
   });
 
   const [activeUserId, setActiveUserId] = useState(() => {
     const savedId = getStoredActiveUserId();
-    return savedId || null;
+    if (savedId && users.some((u) => u.id === savedId)) {
+      return savedId;
+    }
+    return DEMO_USERS[0].id;
   });
+
+  // Groups state
+  const [groups, setGroups] = useState(() => {
+    try {
+      const saved = localStorage.getItem(GROUPS_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return INITIAL_GROUPS;
+  });
+
+  // Persist groups
+  useEffect(() => {
+    try {
+      localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(groups));
+    } catch (e) {}
+  }, [groups]);
 
   // Sync users list from backend on mount
   useEffect(() => {
@@ -31,9 +59,7 @@ export const useUserManagement = () => {
         if (res && res.success && Array.isArray(res.users) && res.users.length > 0) {
           setUsers((prev) => {
             const map = new Map();
-            // preserve existing local users
             prev.forEach((u) => map.set(u.id, u));
-            // merge backend users
             res.users.forEach((bu) => {
               const id = (bu.id || bu._id).toString();
               map.set(id, {
@@ -59,7 +85,7 @@ export const useUserManagement = () => {
     saveStoredActiveUserId(activeUserId);
   }, [activeUserId]);
 
-  const activeUser = users.find((u) => u.id === activeUserId) || null;
+  const activeUser = users.find((u) => u.id === activeUserId) || users[0] || null;
 
   /**
    * Registers a new user with info from the form and syncs with backend
@@ -78,7 +104,6 @@ export const useUserManagement = () => {
       isSystem: false,
     };
 
-    // Instant local state update
     setUsers((prev) => {
       const exists = prev.some((u) => u.id === localUser.id);
       if (exists) return prev;
@@ -86,7 +111,6 @@ export const useUserManagement = () => {
     });
     setActiveUserId(localUser.id);
 
-    // Call backend API
     try {
       const res = await api.registerUser(userData);
       if (res && res.success && res.user) {
@@ -116,7 +140,6 @@ export const useUserManagement = () => {
   const updateUserProfile = useCallback(async (userId, updateData) => {
     if (!userId) return;
 
-    // Instant local update
     setUsers((prev) =>
       prev.map((user) => {
         if (user.id === userId || user._id === userId) {
@@ -129,7 +152,6 @@ export const useUserManagement = () => {
       })
     );
 
-    // Backend sync
     try {
       await api.updateUser(userId, updateData);
     } catch (err) {
@@ -138,13 +160,46 @@ export const useUserManagement = () => {
   }, []);
 
   /**
-   * Switch the current active user chatting in the room
+   * Switch the current active user perspective
    */
   const switchActiveUser = useCallback((userId) => {
-    setActiveUserId(userId);
+    if (userId) {
+      setActiveUserId(userId);
+    }
   }, []);
 
-  // Filter out system bots for user selection lists
+  /**
+   * Create a new group
+   */
+  const createGroup = useCallback(({ name, description, avatar, memberIds = [] }) => {
+    const newGroupId = 'group_' + Date.now().toString(36);
+    const allMembers = Array.from(new Set([activeUserId, ...memberIds].filter(Boolean)));
+    const newGroup = {
+      id: newGroupId,
+      name: name.trim(),
+      description: description?.trim() || 'Team group chat on ConnectX',
+      isGroup: true,
+      avatar: avatar || {
+        emoji: '💬',
+        bg: '#ede9fe',
+        gradient: 'linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)',
+      },
+      members: allMembers,
+      admins: [activeUserId],
+      createdAt: new Date().toISOString(),
+    };
+
+    setGroups((prev) => [newGroup, ...prev]);
+    return newGroup;
+  }, [activeUserId]);
+
+  /**
+   * Leave or delete group
+   */
+  const leaveGroup = useCallback((groupId) => {
+    setGroups((prev) => prev.filter((g) => g.id !== groupId));
+  }, []);
+
   const humanUsers = users.filter((u) => !u.isSystem);
 
   return {
@@ -152,8 +207,11 @@ export const useUserManagement = () => {
     humanUsers,
     activeUser,
     activeUserId,
+    groups,
     registerUser,
     updateUserProfile,
     switchActiveUser,
+    createGroup,
+    leaveGroup,
   };
 };
