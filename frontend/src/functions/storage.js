@@ -8,15 +8,41 @@ const STORAGE_KEYS = {
   MESSAGES: 'connectx_messages',
 };
 
-const FAKE_USER_IDS = ['user-alice', 'user-bob', 'user-charlie', 'user-diana'];
-const FAKE_USER_NAMES = ['alice johnson', 'bob smith', 'charlie brown', 'diana prince'];
+const FAKE_USER_IDS = [
+  'user-alice',
+  'user-bob',
+  'user-charlie',
+  'user-diana',
+  '6aabf9f770c7b35e0341e59f',
+];
+const FAKE_USER_NAMES = [
+  'alice johnson',
+  'bob smith',
+  'charlie brown',
+  'diana prince',
+  'alice',
+  'bob',
+  'charlie',
+  'diana',
+];
 
 export const isFakeUser = (u) => {
   if (!u) return true;
   const id = String(u.id || u._id || '').toLowerCase();
   const name = String(u.name || '').trim().toLowerCase();
   if (FAKE_USER_IDS.some((f) => id.includes(f))) return true;
-  if (FAKE_USER_NAMES.some((f) => name === f)) return true;
+  if (
+    FAKE_USER_NAMES.some(
+      (f) =>
+        name === f ||
+        name.startsWith('alice') ||
+        name.startsWith('bob smith') ||
+        name.startsWith('charlie brown') ||
+        name.startsWith('diana prince')
+    )
+  ) {
+    return true;
+  }
   return false;
 };
 

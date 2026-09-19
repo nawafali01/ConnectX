@@ -14,6 +14,12 @@ const userSchema = new mongoose.Schema(
       required: [true, 'Phone number is required'],
       trim: true,
     },
+    email: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: '',
+    },
     bio: {
       type: String,
       default: 'Hey there! I am using ConnectX.',

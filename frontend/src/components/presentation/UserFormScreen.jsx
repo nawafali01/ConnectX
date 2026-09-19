@@ -29,6 +29,7 @@ export const UserFormScreen = ({ onSubmit, onBack, initialValues = null, isSecon
     const found = COUNTRY_CODES.find(c => raw.startsWith(c.code));
     return found ? raw.slice(found.code.length).trim() : raw;
   });
+  const [email, setEmail] = useState(initialValues?.email || '');
   const [bio, setBio] = useState(initialValues?.bio || '');
   const [selectedAvatar, setSelectedAvatar] = useState(
     initialValues?.avatar || (isSecondUser ? AVATAR_OPTIONS[1] : DEFAULT_AVATAR)
@@ -66,6 +67,13 @@ export const UserFormScreen = ({ onSubmit, onBack, initialValues = null, isSecon
       errs.phone = 'Please enter a valid phone number';
     }
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email.trim()) {
+      errs.email = 'Please enter your email address';
+    } else if (!emailRegex.test(email.trim())) {
+      errs.email = 'Please enter a valid email address';
+    }
+
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -77,6 +85,7 @@ export const UserFormScreen = ({ onSubmit, onBack, initialValues = null, isSecon
     onSubmit({
       name: name.trim(),
       phone: `${countryCode} ${phone.trim()}`,
+      email: email.trim().toLowerCase(),
       bio: bio.trim() || 'Excited to chat on ConnectX!',
       avatar: selectedAvatar,
       customPhoto: customPhoto || null,
@@ -251,6 +260,34 @@ export const UserFormScreen = ({ onSubmit, onBack, initialValues = null, isSecon
             />
           </div>
           {errors.phone && <span className="error-hint">{errors.phone}</span>}
+        </div>
+
+        {/* Email Address Field */}
+        <div className="input-group">
+          <label htmlFor="user-email" className="input-label">
+            Email Address <span style={{ color: '#7c3aed' }}>*</span>
+          </label>
+          <div className="input-field-wrapper">
+            <span className="input-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect width="20" height="16" x="2" y="4" rx="2"/>
+                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+              </svg>
+            </span>
+            <input
+              id="user-email"
+              type="email"
+              className="form-input"
+              placeholder="e.g. user@example.com"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (errors.email) setErrors((prev) => ({ ...prev, email: null }));
+              }}
+              required
+            />
+          </div>
+          {errors.email && <span className="error-hint">{errors.email}</span>}
         </div>
 
         {/* About Field */}

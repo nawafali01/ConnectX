@@ -104,4 +104,11 @@ module.exports = {
     }
     return null;
   },
+
+  deleteUser: (userId) => {
+    const prevLen = store.users.length;
+    store.users = store.users.filter((u) => u.id !== userId && u._id !== userId);
+    persist();
+    return store.users.length < prevLen;
+  },
 };

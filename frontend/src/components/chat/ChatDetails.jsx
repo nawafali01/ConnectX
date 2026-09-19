@@ -15,6 +15,8 @@ import {
   Calendar,
 } from 'lucide-react';
 
+import { useToast } from '../../context/ToastContext';
+
 export const ChatDetails = ({
   conversation,
   activeUser,
@@ -23,15 +25,29 @@ export const ChatDetails = ({
   onClose,
   onLeaveGroup,
   onClearChat,
+  onDeleteUser,
   onViewMedia,
   onlineUsers = [],
   className = '',
 }) => {
+  const { toast, confirm } = useToast();
   const [isMuted, setIsMuted] = useState(false);
 
   if (!conversation) return null;
 
   const isGroup = Boolean(conversation.isGroup);
+
+  // Resolved targetUser for DM
+  const targetUser =
+    conversation.targetUser ||
+    (!isGroup
+      ? users.find(
+          (u) =>
+            u.id !== activeUser?.id &&
+            (String(conversation.id).includes(String(u.id)) ||
+              u.name === conversation.name)
+        ) || conversation
+      : null);
 
   // Get member details for group
   const groupMembers = isGroup
@@ -69,21 +85,38 @@ export const ChatDetails = ({
     <aside
       className={`h-full flex flex-col bg-slate-900 border-l border-slate-800 text-slate-100 select-none overflow-hidden ${className}`}
     >
-      {/* 1. Header with Close Button */}
+      {/* 1. Header with Close and Delete Button */}
       <div className="h-16 px-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/60 backdrop-blur">
         <h3 className="font-bold text-sm text-slate-100 flex items-center gap-2">
           {isGroup ? <Users size={16} className="text-violet-400" /> : <User size={16} className="text-violet-400" />}
           <span>{isGroup ? 'Group Information' : 'Contact Details'}</span>
         </h3>
-        <button
-          type="button"
-          onClick={onClose}
-          className="p-1.5 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors"
-          title="Close details"
-          aria-label="Close"
-        >
-          <X size={18} />
-        </button>
+        <div className="flex items-center gap-1.5">
+          {!isGroup && (
+            <button
+              id="btn-delete-user-header"
+              type="button"
+              onClick={() => {
+                onDeleteUser?.(targetUser || conversation);
+                onClose();
+              }}
+              className="p-2 rounded-xl text-rose-400 hover:text-white hover:bg-rose-600 transition-colors"
+              title={`Delete ${conversation.name || 'User'}`}
+              aria-label="Delete User"
+            >
+              <Trash2 size={17} />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors"
+            title="Close details"
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
       </div>
 
       {/* 2. Scrollable Body */}
@@ -131,6 +164,28 @@ export const ChatDetails = ({
               <span>{conversation.targetUser.phone}</span>
             </div>
           )}
+
+          {!isGroup && conversation.targetUser?.email && (
+            <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-1">
+              <Mail size={12} className="text-slate-500" />
+              <span className="truncate">{conversation.targetUser.email}</span>
+            </div>
+          )}
+
+          {!isGroup && (
+            <button
+              id="btn-delete-user-hero"
+              type="button"
+              onClick={() => {
+                onDeleteUser?.(targetUser || conversation);
+                onClose();
+              }}
+              className="mt-3.5 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-600/25 hover:bg-rose-600 border border-rose-500/40 text-xs font-semibold text-rose-300 hover:text-white transition-all shadow-sm active:scale-95"
+            >
+              <Trash2 size={13} />
+              <span>Delete User</span>
+            </button>
+          )}
         </div>
 
         {/* Group Member List with Badges (Admin / Member) */}
@@ -173,17 +228,33 @@ export const ChatDetails = ({
                     </div>
                   </div>
 
-                  {/* Badge: Admin vs Member */}
-                  {member.isAdmin ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-600/25 border border-violet-500/40 text-[10px] font-bold text-violet-300">
-                      <ShieldCheck size={11} />
-                      Admin
-                    </span>
-                  ) : (
-                    <span className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-[10px] text-slate-400">
-                      Member
-                    </span>
-                  )}
+                  {/* Actions & Badge */}
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {member.isAdmin ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-600/25 border border-violet-500/40 text-[10px] font-bold text-violet-300">
+                        <ShieldCheck size={11} />
+                        Admin
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-[10px] text-slate-400">
+                        Member
+                      </span>
+                    )}
+
+                    {member.id !== activeUser?.id && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onDeleteUser?.(member.user || { id: member.id, name: member.name });
+                        }}
+                        className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
+                        title={`Delete user ${member.name}`}
+                        aria-label={`Delete ${member.name}`}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -241,34 +312,97 @@ export const ChatDetails = ({
             </span>
           </button>
 
-          {/* Leave or Clear Chat */}
+          {/* Leave or Clear Chat or Delete User */}
           {isGroup ? (
-            <button
-              type="button"
-              onClick={() => {
-                if (window.confirm(`Leave group "${conversation.name}"?`)) {
-                  onLeaveGroup?.(conversation.id);
-                  onClose();
-                }
-              }}
-              className="w-full flex items-center gap-2.5 p-3 rounded-xl bg-rose-950/20 hover:bg-rose-900/30 border border-rose-900/40 text-xs font-semibold text-rose-400 transition-colors"
-            >
-              <LogOut size={16} />
-              <span>Leave Group</span>
-            </button>
+            <div className="space-y-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  confirm({
+                    title: `Clear "${conversation.name}" Messages?`,
+                    message: 'Are you sure you want to clear all messages in this group?',
+                    confirmText: 'Clear Messages',
+                    type: 'danger',
+                    onConfirm: () => {
+                      onClearChat?.();
+                      toast.success('Chat Cleared', 'Group messages have been cleared.');
+                    },
+                  });
+                }}
+                className="w-full flex items-center gap-2.5 p-3 rounded-xl bg-slate-800/60 hover:bg-rose-950/30 border border-slate-700/80 hover:border-rose-900/40 text-xs font-semibold text-slate-300 hover:text-rose-400 transition-colors shadow-sm"
+              >
+                <Trash2 size={16} />
+                <span>Clear Chat History</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  confirm({
+                    title: `Leave "${conversation.name}"?`,
+                    message: 'Are you sure you want to leave this group?',
+                    confirmText: 'Leave Group',
+                    type: 'danger',
+                    onConfirm: () => {
+                      onLeaveGroup?.(conversation.id);
+                      toast.info('Left Group', `You have left "${conversation.name}".`);
+                      onClose();
+                    },
+                  });
+                }}
+                className="w-full flex items-center gap-2.5 p-3 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/60 text-xs font-semibold text-rose-300 hover:text-white transition-colors"
+              >
+                <LogOut size={16} />
+                <span>Leave Group</span>
+              </button>
+            </div>
           ) : (
-            <button
-              type="button"
-              onClick={() => {
-                if (window.confirm('Are you sure you want to clear this chat history?')) {
-                  onClearChat?.();
-                }
-              }}
-              className="w-full flex items-center gap-2.5 p-3 rounded-xl bg-rose-950/20 hover:bg-rose-900/30 border border-rose-900/40 text-xs font-semibold text-rose-400 transition-colors"
-            >
-              <Trash2 size={16} />
-              <span>Clear Chat History</span>
-            </button>
+            <div className="space-y-2 pt-1">
+              {/* Clear Chat History */}
+              <button
+                type="button"
+                onClick={() => {
+                  confirm({
+                    title: 'Clear Chat History?',
+                    message: `Are you sure you want to clear conversation messages with ${conversation.name}?`,
+                    confirmText: 'Clear Chat',
+                    type: 'danger',
+                    onConfirm: () => {
+                      onClearChat?.();
+                      toast.success('Chat Cleared', 'Messages have been cleared.');
+                    },
+                  });
+                }}
+                className="w-full flex items-center gap-2.5 p-3 rounded-xl bg-slate-800/60 hover:bg-rose-950/30 border border-slate-700/80 hover:border-rose-900/40 text-xs font-semibold text-slate-300 hover:text-rose-400 transition-colors shadow-sm"
+              >
+                <Trash2 size={16} />
+                <span>Clear Chat History</span>
+              </button>
+
+              {/* Delete User Button - directly below Clear Chat */}
+              <button
+                id="btn-delete-user-contact-details"
+                type="button"
+                onClick={() => {
+                  const uToDelete =
+                    conversation.targetUser ||
+                    users.find(
+                      (u) =>
+                        u.id !== activeUser?.id &&
+                        (String(conversation.id).includes(String(u.id)) ||
+                          u.name === conversation.name)
+                    ) ||
+                    conversation;
+                  onDeleteUser?.(uToDelete);
+                  onClose();
+                }}
+                className="w-full flex items-center gap-2.5 p-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition-all shadow-md shadow-rose-900/40 border border-rose-400/40 active:scale-98"
+                title={`Delete ${conversation.name || 'User'}`}
+              >
+                <Trash2 size={16} />
+                <span>Delete User ({conversation.name || 'User'})</span>
+              </button>
+            </div>
           )}
         </div>
       </div>

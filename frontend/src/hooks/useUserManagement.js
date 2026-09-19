@@ -4,6 +4,9 @@ import {
   saveStoredUsers,
   getStoredActiveUserId,
   saveStoredActiveUserId,
+  getStoredMessages,
+  saveStoredMessages,
+  isFakeUser,
 } from '../functions/storage';
 import { generateId } from '../functions/idGenerator';
 import { INITIAL_BOT_USER, INITIAL_GROUPS } from '../constants/initialData';
@@ -17,9 +20,7 @@ export const useUserManagement = () => {
     const saved = getStoredUsers();
     if (saved && saved.length > 0) {
       // Filter out any leftover fake demo users
-      const cleanUsers = saved.filter(
-        (u) => !['user-alice', 'user-bob', 'user-charlie', 'user-diana'].includes(u.id)
-      );
+      const cleanUsers = saved.filter((u) => !isFakeUser(u));
       if (cleanUsers.length > 0) return cleanUsers;
     }
     return [INITIAL_BOT_USER];
@@ -27,7 +28,7 @@ export const useUserManagement = () => {
 
   const [activeUserId, setActiveUserId] = useState(() => {
     const savedId = getStoredActiveUserId();
-    if (savedId && !['user-alice', 'user-bob', 'user-charlie', 'user-diana'].includes(savedId)) {
+    if (savedId && !isFakeUser({ id: savedId })) {
       return savedId;
     }
     return null;
@@ -68,16 +69,19 @@ export const useUserManagement = () => {
         if (res && res.success && Array.isArray(res.users) && res.users.length > 0) {
           setUsers((prev) => {
             const map = new Map();
-            prev.forEach((u) => map.set(u.id, u));
-            res.users.forEach((bu) => {
-              const id = (bu.id || bu._id).toString();
-              map.set(id, {
-                ...bu,
-                id,
-                isSystem: false,
+            prev.filter((u) => !isFakeUser(u)).forEach((u) => map.set(u.id, u));
+            res.users
+              .filter((bu) => !isFakeUser(bu))
+              .forEach((bu) => {
+                const id = (bu.id || bu._id).toString();
+                map.set(id, {
+                  ...bu,
+                  id,
+                  isSystem: false,
+                });
               });
-            });
-            return Array.from(map.values());
+            const result = Array.from(map.values());
+            return result.length > 0 ? result : [INITIAL_BOT_USER];
           });
         }
       })
@@ -94,16 +98,21 @@ export const useUserManagement = () => {
     saveStoredActiveUserId(activeUserId);
   }, [activeUserId]);
 
-  const activeUser = users.find((u) => u.id === activeUserId) || users[0] || null;
+  const activeUser =
+    users.find((u) => u.id === activeUserId && !isFakeUser(u)) ||
+    users.find((u) => !isFakeUser(u) && !u.isSystem) ||
+    users[0] ||
+    null;
 
   /**
    * Registers a new user with info from the form and syncs with backend
    */
-  const registerUser = useCallback(async (userData) => {
+  const registerUser = useCallback(async (userData, shouldSwitchActive = false) => {
     const tempId = generateId('user');
     const localUser = {
       id: tempId,
       name: userData.name?.trim() || 'Anonymous User',
+      email: userData.email?.trim().toLowerCase() || '',
       phone: userData.phone?.trim() || '',
       bio: userData.bio?.trim() || 'Hey there! I am using ConnectX.',
       avatar: userData.avatar || DEFAULT_AVATAR,
@@ -118,10 +127,20 @@ export const useUserManagement = () => {
       if (exists) return prev;
       return [...prev, localUser];
     });
-    setActiveUserId(localUser.id);
+
+    if (shouldSwitchActive) {
+      setActiveUserId(localUser.id);
+    }
 
     try {
-      const res = await api.registerUser(userData);
+      const res = await api.registerUser({
+        name: localUser.name,
+        phone: localUser.phone,
+        email: localUser.email,
+        bio: localUser.bio,
+        avatar: localUser.avatar,
+        customPhoto: localUser.customPhoto,
+      });
       if (res && res.success && res.user) {
         const backendId = (res.user.id || res.user._id).toString();
         const synchronizedUser = {
@@ -133,7 +152,9 @@ export const useUserManagement = () => {
         setUsers((prev) =>
           prev.map((u) => (u.id === tempId ? synchronizedUser : u))
         );
-        setActiveUserId(backendId);
+        if (shouldSwitchActive) {
+          setActiveUserId(backendId);
+        }
         return synchronizedUser;
       }
     } catch (err) {
@@ -209,7 +230,50 @@ export const useUserManagement = () => {
     setGroups((prev) => prev.filter((g) => g.id !== groupId));
   }, []);
 
-  const humanUsers = users.filter((u) => !u.isSystem);
+  /**
+   * Delete a user locally and from backend
+   */
+  const deleteUser = useCallback(async (userId) => {
+    if (!userId) return;
+    const strId = String(userId);
+
+    // Remove from users list in state and storage
+    setUsers((prev) => {
+      const remaining = prev.filter((u) => String(u.id || u._id) !== strId);
+      saveStoredUsers(remaining);
+      return remaining;
+    });
+
+    // If active user was deleted, fallback
+    setActiveUserId((prev) => {
+      if (String(prev) === strId) {
+        saveStoredActiveUserId(null);
+        return null;
+      }
+      return prev;
+    });
+
+    // Clean up messages from local storage
+    try {
+      const storedMsgs = getStoredMessages();
+      if (Array.isArray(storedMsgs)) {
+        const cleanedMsgs = storedMsgs.filter(
+          (m) =>
+            String(m.senderId) !== strId &&
+            (!m.room || !m.room.includes(strId))
+        );
+        saveStoredMessages(cleanedMsgs);
+      }
+    } catch (e) {}
+
+    try {
+      await api.deleteUser(strId);
+    } catch (err) {
+      console.warn('Backend deleteUser error:', err);
+    }
+  }, []);
+
+  const humanUsers = users.filter((u) => !u.isSystem && !isFakeUser(u));
 
   return {
     users,
@@ -222,5 +286,6 @@ export const useUserManagement = () => {
     switchActiveUser,
     createGroup,
     leaveGroup,
+    deleteUser,
   };
 };

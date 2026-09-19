@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import EmojiPicker from 'emoji-picker-react';
 import { Send, Smile, Paperclip, X, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { api } from '../../services/api';
+import { useToast } from '../../context/ToastContext';
 
 export const ChatInput = ({
   onSendMessage,
@@ -10,6 +11,7 @@ export const ChatInput = ({
   placeholder = 'Type a message...',
   disabled = false,
 }) => {
+  const { toast } = useToast();
   const [text, setText] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -82,12 +84,12 @@ export const ChatInput = ({
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      alert('Please select an image file (PNG, JPG, WebP, GIF).');
+      toast.warning('Invalid File', 'Please select an image file (PNG, JPG, WebP, GIF).');
       return;
     }
 
     if (file.size > 15 * 1024 * 1024) {
-      alert('Image exceeds 15MB limit.');
+      toast.error('File Too Large', 'Image exceeds the 15MB limit.');
       return;
     }
 

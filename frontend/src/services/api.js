@@ -42,6 +42,18 @@ export const api = {
     }
   },
 
+  deleteUser: async (userId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/users/${userId}`, {
+        method: 'DELETE',
+      });
+      return await res.json();
+    } catch (err) {
+      console.error('API deleteUser error:', err);
+      return { success: false, message: err.message };
+    }
+  },
+
   // Messages
   getMessages: async (room = 'general', limit = 100) => {
     try {

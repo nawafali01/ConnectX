@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Avatar } from '../common/Avatar';
+import { isFakeUser } from '../../functions/storage';
 import {
   Search,
   Users,
@@ -20,6 +21,7 @@ export const Sidebar = ({
   onSelectConversation,
   unreadCounts = {},
   onOpenGroupModal,
+  onOpenAddUserModal,
   onOpenSettings,
   onlineUsers = [],
   className = '',
@@ -60,6 +62,7 @@ export const Sidebar = ({
 
     return users
       .filter((u) => {
+        if (!u || isFakeUser(u)) return false;
         const uId = String(u.id || u._id || '');
         const uName = u.name?.trim().toLowerCase();
         if (uId === activeUserId || (activeUserName && uName === activeUserName)) return false;
@@ -227,14 +230,14 @@ export const Sidebar = ({
 
         {/* Action Button: New Group / Add Contact */}
         <button
-          id="btn-sidebar-new-group"
+          id={activeTab === 'direct' ? 'btn-sidebar-add-user' : 'btn-sidebar-new-group'}
           type="button"
-          onClick={onOpenGroupModal}
+          onClick={activeTab === 'direct' ? onOpenAddUserModal : onOpenGroupModal}
           className="h-9 w-9 rounded-xl bg-violet-600 hover:bg-violet-500 text-white border border-violet-400/40 transition-all flex items-center justify-center shadow-md shadow-violet-600/30 flex-shrink-0 active:scale-95"
-          title="Create New Group / Add User"
-          aria-label="New Group"
+          title={activeTab === 'direct' ? 'Add New User / Contact' : 'Create New Group'}
+          aria-label={activeTab === 'direct' ? 'Add User' : 'New Group'}
         >
-          <UserPlus size={16} />
+          {activeTab === 'direct' ? <UserPlus size={16} /> : <Users size={16} />}
         </button>
       </div>
 
@@ -248,11 +251,30 @@ export const Sidebar = ({
             <p className="text-xs font-semibold text-slate-400">
               {searchQuery ? 'No matching conversations' : 'No conversations yet'}
             </p>
-            <p className="text-[11px] text-slate-500 mt-0.5">
+            <p className="text-[11px] text-slate-500 mt-0.5 mb-2.5">
               {activeTab === 'direct'
-                ? 'Select a contact to start chatting'
+                ? 'Add a contact with name, phone & email to start chatting'
                 : 'Create a group to chat with multiple team members'}
             </p>
+            {activeTab === 'direct' ? (
+              <button
+                type="button"
+                onClick={onOpenAddUserModal}
+                className="px-3 py-1.5 rounded-lg bg-violet-600/80 hover:bg-violet-600 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
+              >
+                <UserPlus size={14} />
+                <span>Add New User</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onOpenGroupModal}
+                className="px-3 py-1.5 rounded-lg bg-violet-600/80 hover:bg-violet-600 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
+              >
+                <Users size={14} />
+                <span>Create Group</span>
+              </button>
+            )}
           </div>
         ) : (
           filteredList.map((item) => {

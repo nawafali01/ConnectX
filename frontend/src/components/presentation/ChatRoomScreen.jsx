@@ -1,12 +1,15 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { TopNav } from '../chat/TopNav';
 import { Sidebar } from '../chat/Sidebar';
 import { ChatArea } from '../chat/ChatArea';
 import { ChatDetails } from '../chat/ChatDetails';
 import { GroupModal } from '../chat/GroupModal';
+import { AddUserModal } from '../chat/AddUserModal';
 import { EditProfileModal } from '../modals/EditProfileModal';
 import { EditMessageModal } from '../modals/EditMessageModal';
 import { MediaViewerModal } from '../modals/MediaViewerModal';
+import { useToast } from '../../context/ToastContext';
+import { isFakeUser } from '../../functions/storage';
 
 export const ChatRoomScreen = ({
   activeUser,
@@ -32,7 +35,9 @@ export const ChatRoomScreen = ({
   onClearChat,
   onCreateGroup,
   onLeaveGroup,
+  onDeleteUser,
 }) => {
+  const { toast, confirm } = useToast();
   // Mobile responsive view mode: 'list' (sidebar) | 'chat' (active conversation) | 'details' (drawer)
   const [mobileView, setMobileView] = useState(() => {
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
@@ -45,26 +50,24 @@ export const ChatRoomScreen = ({
 
   // Modals state
   const [showGroupModal, setShowGroupModal] = useState(false);
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editingMessage, setEditingMessage] = useState(null);
   const [viewingMediaUrl, setViewingMediaUrl] = useState(null);
 
   // Resolve active conversation object
   const activeConversation = useMemo(() => {
-    // 1. Match group
-    const foundGroup = groups.find((g) => g.id === activeConversationId);
-    if (foundGroup) {
-      return {
-        ...foundGroup,
-        isGroup: true,
-      };
-    }
+    const activeId = String(activeUser?.id || activeUser?._id || '');
 
-    // 2. Match DM
-    if (activeConversationId.startsWith('dm_')) {
-      const parts = activeConversationId.replace('dm_', '').split('_');
-      const otherId = parts.find((id) => id !== activeUser?.id) || parts[0];
-      const targetUser = users.find((u) => u.id === otherId);
+    // 1. Match DM if activeConversationId starts with 'dm_'
+    if (activeConversationId && activeConversationId.startsWith('dm_')) {
+      const targetUser = users.find((u) => {
+        if (!u || isFakeUser(u)) return false;
+        const uId = String(u.id || u._id || '');
+        if (!uId || uId === activeId) return false;
+        return activeConversationId.includes(uId);
+      });
+
       if (targetUser) {
         return {
           id: activeConversationId,
@@ -77,9 +80,55 @@ export const ChatRoomScreen = ({
       }
     }
 
-    // 3. Fallback to general or first group
+    // 2. Match custom group if activeConversationId is a specific group (not 'general' fallback)
+    if (activeConversationId && activeConversationId !== 'general') {
+      const foundGroup = groups.find((g) => g.id === activeConversationId);
+      if (foundGroup) {
+        return {
+          ...foundGroup,
+          isGroup: true,
+        };
+      }
+    }
+
+    // 3. Fallback: If there is a direct contact user, default to showing their chat!
+    const otherUser = users.find((u) => {
+      if (!u || isFakeUser(u) || u.isSystem) return false;
+      const uId = String(u.id || u._id || '');
+      const uName = u.name?.trim().toLowerCase();
+      const myName = activeUser?.name?.trim().toLowerCase();
+      return uId !== activeId && (!myName || uName !== myName);
+    });
+
+    if (otherUser && activeId) {
+      const dmId = `dm_${[activeId, otherUser.id || otherUser._id].sort().join('_')}`;
+      return {
+        id: dmId,
+        targetUser: otherUser,
+        name: otherUser.name,
+        avatar: otherUser.avatar,
+        customPhoto: otherUser.customPhoto,
+        isGroup: false,
+      };
+    }
+
+    // 4. Fallback to general or first group
+    const foundGeneral = groups.find((g) => g.id === activeConversationId);
+    if (foundGeneral) {
+      return {
+        ...foundGeneral,
+        isGroup: true,
+      };
+    }
     return groups[0] || null;
   }, [activeConversationId, groups, users, activeUser]);
+
+  // Keep activeConversationId in sync if fallback resolved to a contact's DM
+  useEffect(() => {
+    if (activeConversation?.id && activeConversationId !== activeConversation.id) {
+      onSelectConversation?.(activeConversation.id);
+    }
+  }, [activeConversation?.id, activeConversationId, onSelectConversation]);
 
   const handleSelectConversation = (convId) => {
     onSelectConversation?.(convId);
@@ -116,6 +165,27 @@ export const ChatRoomScreen = ({
     setShowGroupModal(false);
   };
 
+  const handleDeleteUser = async (targetUser) => {
+    if (!targetUser) return;
+    const targetUserId = targetUser.id || targetUser._id;
+    const targetUserName = targetUser.name || 'this user';
+
+    confirm({
+      title: `Delete ${targetUserName}?`,
+      message: `Are you sure you want to delete user "${targetUserName}"? This will permanently remove the user and their direct chat history.`,
+      confirmText: 'Delete User',
+      type: 'danger',
+      onConfirm: async () => {
+        await onDeleteUser?.(targetUserId);
+        toast.success('User Deleted', `User "${targetUserName}" has been removed.`);
+        onSelectConversation?.('general');
+        if (mobileView === 'details') {
+          setMobileView('chat');
+        }
+      },
+    });
+  };
+
   return (
     <div className="w-full h-full flex flex-col bg-slate-950 text-slate-100 overflow-hidden font-sans">
       {/* 1. Global Centered Header */}
@@ -141,6 +211,7 @@ export const ChatRoomScreen = ({
             onSelectConversation={handleSelectConversation}
             unreadCounts={unreadCounts}
             onOpenGroupModal={() => setShowGroupModal(true)}
+            onOpenAddUserModal={() => setShowAddUserModal(true)}
             onOpenSettings={() => setShowEditProfile(true)}
             onlineUsers={onlineUsers}
             className="w-full"
@@ -172,6 +243,9 @@ export const ChatRoomScreen = ({
             onViewMedia={(url) => setViewingMediaUrl(url)}
             onBackToList={handleBackToList}
             onToggleDetails={handleToggleDetails}
+            onDeleteUser={handleDeleteUser}
+            onLeaveGroup={onLeaveGroup}
+            onClearChat={onClearChat}
             onlineUsers={onlineUsers}
           />
         </div>
@@ -188,6 +262,7 @@ export const ChatRoomScreen = ({
               onClose={() => setShowDetails(false)}
               onLeaveGroup={onLeaveGroup}
               onClearChat={onClearChat}
+              onDeleteUser={handleDeleteUser}
               onViewMedia={(url) => setViewingMediaUrl(url)}
               onlineUsers={onlineUsers}
               className="w-full"
@@ -206,6 +281,7 @@ export const ChatRoomScreen = ({
               onClose={handleCloseDetails}
               onLeaveGroup={onLeaveGroup}
               onClearChat={onClearChat}
+              onDeleteUser={handleDeleteUser}
               onViewMedia={(url) => setViewingMediaUrl(url)}
               onlineUsers={onlineUsers}
               className="w-full h-full"
@@ -221,6 +297,17 @@ export const ChatRoomScreen = ({
           activeUser={activeUser}
           onCreateGroup={handleCreateGroup}
           onClose={() => setShowGroupModal(false)}
+        />
+      )}
+
+      {/* 3b. Add User Modal */}
+      {showAddUserModal && (
+        <AddUserModal
+          isOpen={showAddUserModal}
+          onClose={() => setShowAddUserModal(false)}
+          onAddUser={onAddNewUser}
+          onSelectConversation={onSelectConversation}
+          currentUserId={activeUser?.id || activeUser?._id}
         />
       )}
 

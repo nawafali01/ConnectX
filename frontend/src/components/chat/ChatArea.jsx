@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useMemo } from 'react';
 import { Avatar } from '../common/Avatar';
 import { MessageBubble } from './MessageBubble';
 import { ChatInput } from './ChatInput';
+import { useToast } from '../../context/ToastContext';
 import {
   ChevronLeft,
   Search,
@@ -10,6 +11,7 @@ import {
   Info,
   MoreVertical,
   Users,
+  Trash2,
 } from 'lucide-react';
 
 export const ChatArea = ({
@@ -27,8 +29,12 @@ export const ChatArea = ({
   onViewMedia,
   onBackToList,
   onToggleDetails,
+  onDeleteUser,
+  onLeaveGroup,
+  onClearChat,
   onlineUsers = [],
 }) => {
+  const { toast } = useToast();
   const messagesEndRef = useRef(null);
 
   // Auto scroll to bottom whenever messages or typing change
@@ -164,7 +170,7 @@ export const ChatArea = ({
         <div className="flex items-center gap-2 sm:gap-2.5 text-slate-300">
           <button
             type="button"
-            onClick={() => alert(`Starting voice call with ${conversation.name}...`)}
+            onClick={() => toast.info('Voice Call', `Calling ${conversation.name}...`)}
             className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 hover:border-violet-500/50 hover:text-violet-300 text-slate-300 transition-all shadow-sm flex items-center justify-center active:scale-95 hidden sm:inline-flex"
             title="Start voice call"
             aria-label="Voice call"
@@ -174,7 +180,7 @@ export const ChatArea = ({
 
           <button
             type="button"
-            onClick={() => alert(`Starting video call with ${conversation.name}...`)}
+            onClick={() => toast.info('Video Call', `Starting video call with ${conversation.name}...`)}
             className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 hover:border-violet-500/50 hover:text-violet-300 text-slate-300 transition-all shadow-sm flex items-center justify-center active:scale-95 hidden sm:inline-flex"
             title="Start video call"
             aria-label="Video call"

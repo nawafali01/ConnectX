@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { getSocket } from '../services/socket';
 import { api } from '../services/api';
-import { getStoredMessages, saveStoredMessages } from '../functions/storage';
+import { getStoredMessages, saveStoredMessages, isFakeUser } from '../functions/storage';
 import { INITIAL_MESSAGES } from '../constants/initialData';
 
-export const useChat = (activeUser) => {
+const ACTIVE_CONV_STORAGE_KEY = 'connectx_active_conv';
+
+export const useChat = (activeUser, users = []) => {
   const [messages, setMessages] = useState(() => {
     const saved = getStoredMessages();
     if (Array.isArray(saved) && saved.length > 0) {
@@ -16,7 +18,14 @@ export const useChat = (activeUser) => {
     return [];
   });
 
-  const [activeConversationId, setActiveConversationId] = useState('general');
+  const [activeConversationId, setActiveConversationId] = useState(() => {
+    try {
+      const saved = localStorage.getItem(ACTIVE_CONV_STORAGE_KEY);
+      if (saved && saved !== 'general') return saved;
+    } catch (e) {}
+    return null;
+  });
+
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [typingMap, setTypingMap] = useState({}); // { [roomId]: { isTyping: bool, name: string } }
   const [unreadCounts, setUnreadCounts] = useState({});
@@ -29,13 +38,52 @@ export const useChat = (activeUser) => {
     activeUserRef.current = activeUser;
   }, [activeUser]);
 
+  // Compute first direct contact user if available
+  const otherUser = useMemo(() => {
+    if (!activeUser || !Array.isArray(users)) return null;
+    const activeId = String(activeUser.id || activeUser._id || '');
+    const activeName = activeUser.name?.trim().toLowerCase();
+    return users.find((u) => {
+      if (!u || isFakeUser(u) || u.isSystem) return false;
+      const uId = String(u.id || u._id || '');
+      const uName = u.name?.trim().toLowerCase();
+      return uId !== activeId && (!activeName || uName !== activeName);
+    });
+  }, [activeUser, users]);
+
+  const defaultDmRoomId = useMemo(() => {
+    if (!activeUser || !otherUser) return null;
+    const myId = String(activeUser.id || activeUser._id || '');
+    const theirId = String(otherUser.id || otherUser._id || '');
+    return `dm_${[myId, theirId].sort().join('_')}`;
+  }, [activeUser, otherUser]);
+
+  // Auto-select DM with the user if activeConversationId is not set or defaulted to general
+  useEffect(() => {
+    if (!activeConversationId || activeConversationId === 'general') {
+      if (defaultDmRoomId) {
+        setActiveConversationId(defaultDmRoomId);
+        try {
+          localStorage.setItem(ACTIVE_CONV_STORAGE_KEY, defaultDmRoomId);
+        } catch (e) {}
+      } else if (!activeConversationId) {
+        setActiveConversationId('general');
+      }
+    }
+  }, [defaultDmRoomId, activeConversationId]);
+
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
+    if (socketRef.current && activeConversationId) {
+      socketRef.current.emit('room:join', { room: activeConversationId });
+    }
     // Clear unread badge for active conversation
-    setUnreadCounts((prev) => ({
-      ...prev,
-      [activeConversationId]: 0,
-    }));
+    if (activeConversationId) {
+      setUnreadCounts((prev) => ({
+        ...prev,
+        [activeConversationId]: 0,
+      }));
+    }
   }, [activeConversationId]);
 
   // Persist messages whenever updated
@@ -43,15 +91,13 @@ export const useChat = (activeUser) => {
     saveStoredMessages(messages);
   }, [messages]);
 
-  // Initialize socket and listeners
+  // Load message history from backend whenever active conversation changes
   useEffect(() => {
-    const socket = getSocket();
-    socketRef.current = socket;
+    if (!activeConversationId) return;
 
-    // Load initial message history from backend for general room
-    api.getMessages('general')
+    api.getMessages(activeConversationId)
       .then((res) => {
-        if (res && res.success && Array.isArray(res.messages) && res.messages.length > 0) {
+        if (res && res.success && Array.isArray(res.messages)) {
           const formatted = res.messages.map((m) => ({
             ...m,
             id: (m.id || m._id).toString(),
@@ -66,6 +112,12 @@ export const useChat = (activeUser) => {
         }
       })
       .catch((err) => console.warn('Failed to load message history from backend:', err));
+  }, [activeConversationId]);
+
+  // Initialize socket and listeners
+  useEffect(() => {
+    const socket = getSocket();
+    socketRef.current = socket;
 
     const emitJoin = () => {
       if (activeUserRef.current?.id) {
@@ -220,8 +272,12 @@ export const useChat = (activeUser) => {
 
   // When conversation changes, join the room on socket
   const selectConversation = useCallback((convId) => {
+    if (!convId) return;
     setActiveConversationId(convId);
-    if (socketRef.current && convId) {
+    try {
+      localStorage.setItem(ACTIVE_CONV_STORAGE_KEY, convId);
+    } catch (e) {}
+    if (socketRef.current) {
       socketRef.current.emit('room:join', { room: convId });
     }
   }, []);

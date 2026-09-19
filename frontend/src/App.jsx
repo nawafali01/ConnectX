@@ -5,6 +5,7 @@ import { UserFormScreen } from './components/presentation/UserFormScreen';
 import { ProfileScreen } from './components/presentation/ProfileScreen';
 import { ChatRoomScreen } from './components/presentation/ChatRoomScreen';
 import { ThemeCustomizer } from './components/presentation/ThemeCustomizer';
+import { ToastProvider } from './context/ToastContext';
 import { useUserManagement } from './hooks/useUserManagement';
 import { useChat } from './hooks/useChat';
 import { useTheme } from './hooks/useTheme';
@@ -55,6 +56,7 @@ export default function App() {
     switchActiveUser,
     createGroup,
     leaveGroup,
+    deleteUser,
   } = useUserManagement();
 
   const {
@@ -73,7 +75,7 @@ export default function App() {
     typingUserName,
     sendTypingStart,
     sendTypingStop,
-  } = useChat(activeUser);
+  } = useChat(activeUser, users);
 
   // Flow Navigation Handlers
   const handleWelcomeNext = () => {
@@ -82,7 +84,7 @@ export default function App() {
   };
 
   const handleFormSubmit = async (formData) => {
-    await registerUser(formData);
+    await registerUser(formData, true);
     setIsSecondUserMode(false);
     setCurrentScreen(SCREENS.CHAT);
   };
@@ -102,85 +104,88 @@ export default function App() {
   };
 
   return (
-    <div className="w-screen h-[100dvh] overflow-hidden bg-slate-950 text-slate-100 flex flex-col relative font-sans">
-      {/* Floating Theme Customizer - accessible from settings/corner */}
-      <ThemeCustomizer
-        theme={theme}
-        onSetColors={setColors}
-        onApplyPreset={applyPreset}
-      />
+    <ToastProvider>
+      <div className="w-screen h-[100dvh] overflow-hidden bg-slate-950 text-slate-100 flex flex-col relative font-sans">
+        {/* Floating Theme Customizer - accessible from settings/corner */}
+        <ThemeCustomizer
+          theme={theme}
+          onSetColors={setColors}
+          onApplyPreset={applyPreset}
+        />
 
-      {/* Main Screen Router */}
-      <main className="w-full h-full flex flex-col overflow-hidden">
-        {currentScreen === SCREENS.WELCOME && (
-          <div className="w-full h-full flex items-center justify-center p-4 bg-slate-950">
-            <div className="w-full max-w-md glass-container p-6 rounded-3xl">
-              <WelcomeScreen onNext={handleWelcomeNext} />
+        {/* Main Screen Router */}
+        <main className="w-full h-full flex flex-col overflow-hidden">
+          {currentScreen === SCREENS.WELCOME && (
+            <div className="w-full h-full flex items-center justify-center p-4 bg-slate-950">
+              <div className="w-full max-w-md glass-container p-6 rounded-3xl">
+                <WelcomeScreen onNext={handleWelcomeNext} />
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {currentScreen === SCREENS.FORM && (
-          <div className="w-full h-full flex items-center justify-center p-4 bg-slate-950">
-            <div className="w-full max-w-lg glass-container p-6 rounded-3xl">
-              <UserFormScreen
-                onSubmit={handleFormSubmit}
-                onBack={() => {
-                  setIsSecondUserMode(false);
-                  setCurrentScreen(SCREENS.CHAT);
-                }}
-                initialValues={!isSecondUserMode && activeUser ? activeUser : null}
-                isSecondUser={isSecondUserMode}
-              />
+          {currentScreen === SCREENS.FORM && (
+            <div className="w-full h-full flex items-center justify-center p-4 bg-slate-950">
+              <div className="w-full max-w-lg glass-container p-6 rounded-3xl">
+                <UserFormScreen
+                  onSubmit={handleFormSubmit}
+                  onBack={() => {
+                    setIsSecondUserMode(false);
+                    setCurrentScreen(SCREENS.CHAT);
+                  }}
+                  initialValues={!isSecondUserMode && activeUser ? activeUser : null}
+                  isSecondUser={isSecondUserMode}
+                />
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {currentScreen === SCREENS.PROFILE && (
-          <div className="w-full h-full flex items-center justify-center p-4 bg-slate-950">
-            <div className="w-full max-w-md glass-container p-6 rounded-3xl">
-              <ProfileScreen
-                user={activeUser}
-                onEnterChat={handleProfileEnterChat}
-                onEditProfile={handleEditProfile}
-              />
+          {currentScreen === SCREENS.PROFILE && (
+            <div className="w-full h-full flex items-center justify-center p-4 bg-slate-950">
+              <div className="w-full max-w-md glass-container p-6 rounded-3xl">
+                <ProfileScreen
+                  user={activeUser}
+                  onEnterChat={handleProfileEnterChat}
+                  onEditProfile={handleEditProfile}
+                />
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {currentScreen === SCREENS.CHAT && (
-          <ChatRoomScreen
-            activeUser={activeUser}
-            users={users}
-            groups={groups}
-            messages={messages}
-            activeMessages={activeMessages}
-            activeConversationId={activeConversationId}
-            onSelectConversation={selectConversation}
-            onlineUsers={onlineUsers}
-            unreadCounts={unreadCounts}
-            isTyping={isTyping}
-            typingUserName={typingUserName}
-            onTypingStart={sendTypingStart}
-            onTypingStop={sendTypingStop}
-            onSendMessage={sendMessage}
-            onSwitchUser={switchActiveUser}
-            onAddNewUser={handleAddNewUserFromChat}
-            onSaveProfile={(updatedData) => {
-              if (activeUser) updateUserProfile(activeUser.id, updatedData);
-            }}
-            onDeleteMessage={deleteMessage}
-            onEditMessage={editMessage}
-            onToggleReaction={toggleReaction}
-            onClearChat={clearChat}
-            onCreateGroup={createGroup}
-            onLeaveGroup={leaveGroup}
-          />
-        )}
-      </main>
+          {currentScreen === SCREENS.CHAT && (
+            <ChatRoomScreen
+              activeUser={activeUser}
+              users={users}
+              groups={groups}
+              messages={messages}
+              activeMessages={activeMessages}
+              activeConversationId={activeConversationId}
+              onSelectConversation={selectConversation}
+              onlineUsers={onlineUsers}
+              unreadCounts={unreadCounts}
+              isTyping={isTyping}
+              typingUserName={typingUserName}
+              onTypingStart={sendTypingStart}
+              onTypingStop={sendTypingStop}
+              onSendMessage={sendMessage}
+              onSwitchUser={switchActiveUser}
+              onAddNewUser={registerUser}
+              onSaveProfile={(updatedData) => {
+                if (activeUser) updateUserProfile(activeUser.id, updatedData);
+              }}
+              onDeleteMessage={deleteMessage}
+              onEditMessage={editMessage}
+              onToggleReaction={toggleReaction}
+              onClearChat={clearChat}
+              onCreateGroup={createGroup}
+              onLeaveGroup={leaveGroup}
+              onDeleteUser={deleteUser}
+            />
+          )}
+        </main>
 
-      {/* Agentation Visual Feedback Layer for AI Agents (in dev mode) */}
-      {(import.meta.env?.DEV || process.env.NODE_ENV === 'development') && <Agentation />}
-    </div>
+        {/* Agentation Visual Feedback Layer for AI Agents (in dev mode) */}
+        {(import.meta.env?.DEV || process.env.NODE_ENV === 'development') && <Agentation />}
+      </div>
+    </ToastProvider>
   );
 }
