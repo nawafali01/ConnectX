@@ -1,396 +1,318 @@
-import React, { useState, useRef } from 'react';
-import { UserPlus, User, Mail, Phone, X, Camera, Sparkles, Check, Image as ImageIcon } from 'lucide-react';
-import { AVATAR_OPTIONS, DEFAULT_AVATAR } from '../../constants/avatars';
+import React, { useState } from 'react';
+import {
+  UserCheck,
+  User,
+  Mail,
+  X,
+  AlertCircle,
+  Loader2,
+  ShieldCheck,
+  Sparkles,
+  CheckCircle2,
+  ArrowRight,
+  HelpCircle,
+} from 'lucide-react';
+import { api } from '../../services/api';
+import { getSocket } from '../../services/socket';
 import { useToast } from '../../context/ToastContext';
-
-const COUNTRY_CODES = [
-  { code: '+92', name: 'PK', flag: '🇵🇰' },
-  { code: '+1',  name: 'US', flag: '🇺🇸' },
-  { code: '+44', name: 'UK', flag: '🇬🇧' },
-  { code: '+971', name: 'AE', flag: '🇦🇪' },
-  { code: '+966', name: 'SA', flag: '🇸🇦' },
-  { code: '+91', name: 'IN', flag: '🇮🇳' },
-  { code: '+49', name: 'DE', flag: '🇩🇪' },
-  { code: '+33', name: 'FR', flag: '🇫🇷' },
-  { code: '+61', name: 'AU', flag: '🇦🇺' },
-  { code: '+81', name: 'JP', flag: '🇯🇵' },
-];
 
 export const AddUserModal = ({
   isOpen = true,
   onClose,
-  onAddUser,
+  onContactAdded,
   onSelectConversation,
   currentUserId,
 }) => {
   const { toast } = useToast();
-  const fileInputRef = useRef(null);
-
   const [name, setName] = useState('');
-  const [countryCode, setCountryCode] = useState('+92');
-  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [bio, setBio] = useState('Hey there! I am using ConnectX.');
-  const [selectedAvatar, setSelectedAvatar] = useState(AVATAR_OPTIONS[0] || DEFAULT_AVATAR);
-  const [customPhoto, setCustomPhoto] = useState(null);
+  const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errors, setErrors] = useState({});
+  const [focusedField, setFocusedField] = useState(null);
 
   if (!isOpen) return null;
 
-  const handlePhotoUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 2 * 1024 * 1024) {
-      toast.warning('File too large', 'Please choose an image under 2MB.');
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setCustomPhoto(event.target.result);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const validate = () => {
-    const newErrors = {};
-
-    // 1. Name validation
-    if (!name.trim()) {
-      newErrors.name = 'Full name is required';
-    } else if (name.trim().length < 2) {
-      newErrors.name = 'Name must be at least 2 characters';
-    }
-
-    // 2. Phone validation
-    const cleanPhone = phone.replace(/[^0-9]/g, '');
-    if (!phone.trim()) {
-      newErrors.phone = 'Phone number is required';
-    } else if (cleanPhone.length < 5 || cleanPhone.length > 15) {
-      newErrors.phone = 'Please enter a valid phone number (5-15 digits)';
-    }
-
-    // 3. Email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email.trim()) {
-      newErrors.email = 'Email address is required';
-    } else if (!emailRegex.test(email.trim())) {
-      newErrors.email = 'Please enter a valid email address';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+  const isEmailFormatValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validate()) return;
+    setErrorMessage('');
+
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim().toLowerCase();
+
+    if (!trimmedName || !trimmedEmail) {
+      setErrorMessage('Please fill in both Full Name and Registered Email.');
+      return;
+    }
+
+    if (!currentUserId) {
+      setErrorMessage('Active user session not found. Please select an active user profile first.');
+      return;
+    }
 
     setIsSubmitting(true);
+
     try {
-      const fullPhone = `${countryCode} ${phone.trim()}`;
-      const payload = {
-        name: name.trim(),
-        phone: fullPhone,
-        email: email.trim().toLowerCase(),
-        bio: bio.trim() || 'Hey there! I am using ConnectX.',
-        avatar: selectedAvatar,
-        customPhoto: customPhoto || null,
-      };
+      const res = await api.addUserToChat({
+        currentUserId,
+        name: trimmedName,
+        email: trimmedEmail,
+      });
 
-      const newUser = await onAddUser(payload, false);
-
-      toast.success(
-        'User Created',
-        `${name.trim()} has been added successfully!`
-      );
-
-      // Optionally automatically open DM with newly created user
-      if (newUser && currentUserId && onSelectConversation) {
-        const targetId = newUser.id || newUser._id;
-        const dmRoomId = [currentUserId, targetId].sort().join('_');
-        onSelectConversation(`dm_${dmRoomId}`);
+      if (!res.ok || !res.success) {
+        setErrorMessage(
+          res.message || 'User with this name/email not found or unverified'
+        );
+        return;
       }
+
+      const { user, conversationId, isExisting } = res;
+
+      // 1. Add contact to local & sidebar state
+      if (onContactAdded) {
+        onContactAdded(user, conversationId);
+      }
+
+      // 2. Select the room
+      if (onSelectConversation) {
+        onSelectConversation(conversationId);
+      }
+
+      // 3. Join socket conversation room
+      const socket = getSocket();
+      if (socket) {
+        socket.emit('join_conversation', conversationId);
+      }
+
+      // 4. Toast notification
+      toast.success(
+        isExisting ? 'Chat Opened' : 'Contact Verified',
+        isExisting
+          ? `Conversation with ${user.name} opened.`
+          : `${user.name} has been verified and added to your contacts!`
+      );
 
       onClose();
     } catch (err) {
-      console.error('Error adding user:', err);
-      toast.error('Failed to add user', err.message || 'Something went wrong.');
+      setErrorMessage(err.message || 'Network error while verifying contact. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const displayAvatarSrc = customPhoto || selectedAvatar?.url;
-
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg max-h-[92dvh] flex flex-col bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl shadow-black/80 overflow-hidden text-slate-100"
+        className="relative w-full max-w-[440px] bg-slate-900/95 border border-slate-700/80 rounded-3xl shadow-2xl shadow-violet-950/40 overflow-hidden text-slate-100 flex flex-col backdrop-blur-2xl transition-all"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
+        aria-labelledby="modal-title"
       >
-        {/* Header */}
-        <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/90 backdrop-blur sticky top-0 z-10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-violet-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-violet-600/30 text-white">
-              <UserPlus size={20} />
+        {/* Subtle decorative top glow */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-24 bg-gradient-to-b from-violet-600/20 via-indigo-600/10 to-transparent blur-2xl pointer-events-none" />
+
+        {/* Modal Header */}
+        <div className="px-6 pt-6 pb-4 flex items-start justify-between relative z-10 border-b border-slate-800/80 bg-slate-900/40">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-violet-600 via-indigo-600 to-purple-500 p-[1px] shadow-lg shadow-violet-600/30 flex-shrink-0">
+              <div className="w-full h-full bg-slate-900/90 rounded-2xl flex items-center justify-center text-violet-300">
+                <UserCheck size={22} className="text-violet-400" />
+              </div>
             </div>
             <div>
-              <h2 className="font-bold text-base text-slate-100 leading-tight">
-                Add New User
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 id="modal-title" className="font-bold text-base text-slate-100 leading-tight">
+                  Add Contact & Create Room
+                </h2>
+              </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Register a new contact with name, phone, and email
+                Verify identity to start private messaging
               </p>
             </div>
           </div>
-
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors"
-            aria-label="Close"
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 transition-all active:scale-95"
+            aria-label="Close modal"
           >
             <X size={18} />
           </button>
         </div>
 
-        {/* Scrollable Form Body */}
-        <form
-          id="add-user-form"
-          onSubmit={handleSubmit}
-          className="flex-1 overflow-y-auto px-5 py-4 space-y-4"
-        >
-          {/* Avatar Preview & Selection */}
-          <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl p-3.5 flex flex-col sm:flex-row items-center gap-4">
-            {/* Main Avatar Preview */}
-            <div className="relative group cursor-pointer flex-shrink-0" onClick={() => fileInputRef.current?.click()}>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handlePhotoUpload}
-              />
-              <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-violet-500 shadow-md shadow-violet-500/20 bg-slate-800 flex items-center justify-center">
-                {displayAvatarSrc ? (
-                  <img
-                    src={displayAvatarSrc}
-                    alt="Preview"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <User size={30} className="text-slate-400" />
-                )}
-              </div>
-              <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                <Camera size={18} />
-              </div>
+        {/* Form Body */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 relative z-10">
+          {/* Security Banner */}
+          <div className="p-3 rounded-2xl bg-slate-800/40 border border-slate-700/60 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center flex-shrink-0 text-violet-400">
+              <ShieldCheck size={16} />
             </div>
-
-            {/* Avatar Preset Grid & Upload button */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-slate-300">Choose Avatar or Photo</span>
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="text-[11px] text-violet-400 hover:text-violet-300 font-medium flex items-center gap-1"
-                >
-                  <ImageIcon size={12} />
-                  <span>Upload Custom</span>
-                </button>
-              </div>
-
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-                {AVATAR_OPTIONS.slice(0, 6).map((av) => {
-                  const isSelected = !customPhoto && selectedAvatar?.id === av.id;
-                  return (
-                    <button
-                      key={av.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedAvatar(av);
-                        setCustomPhoto(null);
-                      }}
-                      className={`relative w-9 h-9 rounded-full overflow-hidden flex-shrink-0 border-2 transition-all ${
-                        isSelected
-                          ? 'border-violet-500 scale-105 shadow-md shadow-violet-500/30'
-                          : 'border-slate-700 hover:border-slate-500 opacity-75 hover:opacity-100'
-                      }`}
-                      style={{ backgroundColor: av.bg }}
-                    >
-                      <img src={av.url} alt={av.name} className="w-full h-full object-cover" />
-                      {isSelected && (
-                        <div className="absolute inset-0 bg-violet-600/40 flex items-center justify-center">
-                          <Check size={12} className="text-white stroke-[3]" />
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+            <div className="text-[11px] text-slate-300 leading-snug">
+              <span className="font-semibold text-violet-300">Two-factor verification:</span> Exact email and matching full name are required to generate a private room.
             </div>
           </div>
 
-          {/* Full Name Field */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              Full Name <span className="text-rose-400">*</span>
-            </label>
-            <div className="relative">
-              <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+          {/* Backend Error Alert Box */}
+          {errorMessage && (
+            <div
+              id="add-user-error-banner"
+              className="p-3.5 rounded-2xl bg-gradient-to-r from-rose-950/60 to-red-950/30 border border-rose-500/40 text-rose-200 text-xs flex items-start gap-3 animate-shake shadow-lg shadow-rose-950/30"
+            >
+              <div className="p-1 rounded-lg bg-rose-500/20 text-rose-400 flex-shrink-0 mt-0.5">
+                <AlertCircle size={16} />
+              </div>
+              <div className="space-y-1">
+                <div className="font-bold text-rose-100 leading-tight">Verification Failed</div>
+                <div className="text-rose-300/90 text-[11px] leading-relaxed">{errorMessage}</div>
+                <div className="text-[10px] text-rose-400/80 pt-0.5">
+                  • Ensure the contact has registered on ConnectX and the name matches their registered profile.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Field 1: Full Name */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label htmlFor="contact-fullname" className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                <span>Full Name</span>
+                <span className="text-violet-400">*</span>
+              </label>
+              <span className="text-[10px] text-slate-500">Case-insensitive</span>
+            </div>
+            <div
+              className={`relative flex items-center transition-all rounded-xl border bg-slate-800/60 ${
+                focusedField === 'name'
+                  ? 'border-violet-500 shadow-md shadow-violet-500/10 ring-1 ring-violet-500/30'
+                  : 'border-slate-700/70 hover:border-slate-600'
+              }`}
+            >
+              <div className={`pl-3.5 pr-2.5 flex items-center pointer-events-none transition-colors ${
+                focusedField === 'name' ? 'text-violet-400' : 'text-slate-400'
+              }`}>
                 <User size={16} />
               </div>
               <input
+                id="contact-fullname"
                 type="text"
                 value={name}
+                onFocus={() => setFocusedField('name')}
+                onBlur={() => setFocusedField(null)}
                 onChange={(e) => {
                   setName(e.target.value);
-                  if (errors.name) setErrors((prev) => ({ ...prev, name: null }));
+                  if (errorMessage) setErrorMessage('');
                 }}
-                placeholder="e.g. John Doe"
-                className={`w-full h-11 pl-10 pr-3.5 bg-slate-800/80 border rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none transition-all ${
-                  errors.name
-                    ? 'border-rose-500 focus:border-rose-500 ring-1 ring-rose-500/30'
-                    : 'border-slate-700/80 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30'
-                }`}
+                placeholder="e.g. Fahad Ali"
+                disabled={isSubmitting}
+                className="w-full h-11 bg-transparent text-sm text-slate-100 placeholder-slate-500 outline-none pr-3.5 font-medium"
+                required
               />
-            </div>
-            {errors.name && (
-              <p className="text-[11px] text-rose-400 mt-1 pl-1 font-medium">{errors.name}</p>
-            )}
-          </div>
-
-          {/* Phone Number Field */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              Phone Number <span className="text-rose-400">*</span>
-            </label>
-            <div className="flex gap-2">
-              {/* Country Code Select */}
-              <div className="w-28 flex-shrink-0">
-                <select
-                  value={countryCode}
-                  onChange={(e) => setCountryCode(e.target.value)}
-                  className="w-full h-11 px-2.5 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-violet-500 transition-all font-mono"
+              {name.trim() && (
+                <button
+                  type="button"
+                  onClick={() => setName('')}
+                  className="mr-2.5 text-slate-500 hover:text-slate-300 p-1 rounded-md"
                 >
-                  {COUNTRY_CODES.map((c) => (
-                    <option key={c.code} value={c.code} className="bg-slate-900 text-slate-200">
-                      {c.flag} {c.code}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Number Input */}
-              <div className="relative flex-1">
-                <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
-                  <Phone size={15} />
-                </div>
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => {
-                    setPhone(e.target.value);
-                    if (errors.phone) setErrors((prev) => ({ ...prev, phone: null }));
-                  }}
-                  placeholder="300 1234567"
-                  className={`w-full h-11 pl-10 pr-3.5 bg-slate-800/80 border rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none transition-all ${
-                    errors.phone
-                      ? 'border-rose-500 focus:border-rose-500 ring-1 ring-rose-500/30'
-                      : 'border-slate-700/80 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30'
-                  }`}
-                />
-              </div>
+                  <X size={12} />
+                </button>
+              )}
             </div>
-            {errors.phone && (
-              <p className="text-[11px] text-rose-400 mt-1 pl-1 font-medium">{errors.phone}</p>
-            )}
           </div>
 
-          {/* Email Address Field */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              Email Address <span className="text-rose-400">*</span>
-            </label>
-            <div className="relative">
-              <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+          {/* Field 2: Registered Email */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label htmlFor="contact-email" className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                <span>Registered Email</span>
+                <span className="text-violet-400">*</span>
+              </label>
+              {isEmailFormatValid ? (
+                <span className="text-[10px] text-emerald-400 font-medium flex items-center gap-1">
+                  <CheckCircle2 size={11} /> Valid format
+                </span>
+              ) : (
+                <span className="text-[10px] text-slate-500">Exact email</span>
+              )}
+            </div>
+            <div
+              className={`relative flex items-center transition-all rounded-xl border bg-slate-800/60 ${
+                focusedField === 'email'
+                  ? 'border-violet-500 shadow-md shadow-violet-500/10 ring-1 ring-violet-500/30'
+                  : 'border-slate-700/70 hover:border-slate-600'
+              }`}
+            >
+              <div className={`pl-3.5 pr-2.5 flex items-center pointer-events-none transition-colors ${
+                focusedField === 'email' ? 'text-violet-400' : 'text-slate-400'
+              }`}>
                 <Mail size={16} />
               </div>
               <input
+                id="contact-email"
                 type="email"
                 value={email}
+                onFocus={() => setFocusedField('email')}
+                onBlur={() => setFocusedField(null)}
                 onChange={(e) => {
                   setEmail(e.target.value);
-                  if (errors.email) setErrors((prev) => ({ ...prev, email: null }));
+                  if (errorMessage) setErrorMessage('');
                 }}
-                placeholder="e.g. user@example.com"
-                className={`w-full h-11 pl-10 pr-3.5 bg-slate-800/80 border rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none transition-all ${
-                  errors.email
-                    ? 'border-rose-500 focus:border-rose-500 ring-1 ring-rose-500/30'
-                    : 'border-slate-700/80 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30'
-                }`}
+                placeholder="e.g. fahadali123@gmail.com"
+                disabled={isSubmitting}
+                className="w-full h-11 bg-transparent text-sm text-slate-100 placeholder-slate-500 outline-none pr-3.5 font-medium"
+                required
               />
+              {email.trim() && (
+                <button
+                  type="button"
+                  onClick={() => setEmail('')}
+                  className="mr-2.5 text-slate-500 hover:text-slate-300 p-1 rounded-md"
+                >
+                  <X size={12} />
+                </button>
+              )}
             </div>
-            {errors.email && (
-              <p className="text-[11px] text-rose-400 mt-1 pl-1 font-medium">{errors.email}</p>
-            )}
           </div>
 
-          {/* Bio / Status Field */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              About / Status <span className="text-slate-500 font-normal">(Optional)</span>
-            </label>
-            <input
-              type="text"
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              placeholder="e.g. Product Specialist at ConnectX"
-              maxLength={120}
-              className="w-full h-11 px-3.5 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-violet-500 transition-all"
-            />
+          {/* Helpful guidance note */}
+          <div className="pt-1 flex items-center gap-1.5 text-[11px] text-slate-400">
+            <Sparkles size={12} className="text-amber-400 flex-shrink-0" />
+            <span>Enter the registered full name & verified email of any ConnectX user.</span>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="pt-2 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="flex-1 py-2.5 px-4 rounded-xl border border-slate-700/80 hover:bg-slate-800 text-slate-300 text-xs font-semibold transition-all active:scale-95 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting || !name.trim() || !email.trim()}
+              className="flex-[1.5] py-2.5 px-4 rounded-xl bg-gradient-to-r from-violet-600 via-indigo-600 to-purple-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-bold shadow-lg shadow-violet-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer active:scale-[0.98]"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 size={15} className="animate-spin text-white" />
+                  <span>Verifying Contact...</span>
+                </>
+              ) : (
+                <>
+                  <span>Connect & Start Chat</span>
+                  <ArrowRight size={14} />
+                </>
+              )}
+            </button>
           </div>
         </form>
-
-        {/* Sticky Action Footer */}
-        <div className="px-5 py-3.5 border-t border-slate-800/80 bg-slate-900/90 backdrop-blur flex items-center justify-end gap-3 sticky bottom-0 z-10">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isSubmitting}
-            className="px-4 py-2 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/80 rounded-xl transition-colors"
-          >
-            Cancel
-          </button>
-
-          <button
-            type="submit"
-            form="add-user-form"
-            disabled={isSubmitting}
-            className="px-5 py-2.5 text-xs font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-xl shadow-lg shadow-violet-600/30 hover:shadow-violet-600/50 flex items-center gap-2 active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none"
-          >
-            {isSubmitting ? (
-              <>
-                <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span>Creating User...</span>
-              </>
-            ) : (
-              <>
-                <Sparkles size={14} />
-                <span>Add User</span>
-              </>
-            )}
-          </button>
-        </div>
       </div>
     </div>
   );

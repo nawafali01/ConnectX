@@ -54,6 +54,22 @@ export const api = {
     }
   },
 
+  // Chats & Verified Contacts
+  addUserToChat: async ({ currentUserId, name, email }) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/chats/add-user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentUserId, name, email }),
+      });
+      const data = await res.json();
+      return { ok: res.ok, status: res.status, ...data };
+    } catch (err) {
+      console.error('API addUserToChat error:', err);
+      return { ok: false, status: 500, success: false, message: err.message || 'Network error' };
+    }
+  },
+
   // Messages
   getMessages: async (room = 'general', limit = 100) => {
     try {

@@ -28,6 +28,7 @@ export const ChatRoomScreen = ({
   onSendMessage,
   onSwitchUser,
   onAddNewUser,
+  onAddContact,
   onSaveProfile,
   onDeleteMessage,
   onEditMessage,
@@ -66,6 +67,30 @@ export const ChatRoomScreen = ({
         const uId = String(u.id || u._id || '');
         if (!uId || uId === activeId) return false;
         return activeConversationId.includes(uId);
+      });
+
+      if (targetUser) {
+        return {
+          id: activeConversationId,
+          targetUser,
+          name: targetUser.name,
+          avatar: targetUser.avatar,
+          customPhoto: targetUser.customPhoto,
+          isGroup: false,
+        };
+      }
+    }
+
+    // 1b. Match verified 1-on-1 conversation room by conversationId
+    if (activeConversationId && activeConversationId !== 'general') {
+      const targetUser = users.find((u) => {
+        if (!u || isFakeUser(u)) return false;
+        const uId = String(u.id || u._id || '');
+        if (!uId || uId === activeId) return false;
+        return (
+          u.conversationId === activeConversationId ||
+          (activeConversationId.length > 10 && activeConversationId.includes(uId))
+        );
       });
 
       if (targetUser) {
@@ -305,7 +330,9 @@ export const ChatRoomScreen = ({
         <AddUserModal
           isOpen={showAddUserModal}
           onClose={() => setShowAddUserModal(false)}
-          onAddUser={onAddNewUser}
+          onContactAdded={(contactUser, conversationId) => {
+            onAddContact?.(contactUser, conversationId);
+          }}
           onSelectConversation={onSelectConversation}
           currentUserId={activeUser?.id || activeUser?._id}
         />

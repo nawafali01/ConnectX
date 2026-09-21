@@ -273,6 +273,33 @@ export const useUserManagement = () => {
     }
   }, []);
 
+  /**
+   * Adds or updates a verified contact (and its linked conversation room)
+   */
+  const addVerifiedContact = useCallback((contactUser, conversationId = null) => {
+    if (!contactUser) return null;
+    const contactId = String(contactUser.id || contactUser._id);
+    const formatted = {
+      ...contactUser,
+      id: contactId,
+      _id: contactId,
+      conversationId: conversationId || contactUser.conversationId || null,
+      isSystem: false,
+    };
+
+    setUsers((prev) => {
+      const exists = prev.some((u) => String(u.id || u._id) === contactId);
+      if (exists) {
+        return prev.map((u) =>
+          String(u.id || u._id) === contactId ? { ...u, ...formatted } : u
+        );
+      }
+      return [...prev, formatted];
+    });
+
+    return formatted;
+  }, []);
+
   const humanUsers = users.filter((u) => !u.isSystem && !isFakeUser(u));
 
   return {
@@ -282,6 +309,7 @@ export const useUserManagement = () => {
     activeUserId,
     groups,
     registerUser,
+    addVerifiedContact,
     updateUserProfile,
     switchActiveUser,
     createGroup,

@@ -70,15 +70,22 @@ export const Sidebar = ({
         return true;
       })
       .map((u) => {
-        const roomId = getDmRoomId(activeUser.id, u.id);
-        const roomMessages = messages.filter((m) => (m.room || 'general') === roomId);
+        const fallbackRoomId = getDmRoomId(activeUser.id, u.id);
+        const roomId = u.conversationId || fallbackRoomId;
+        const roomMessages = messages.filter((m) => {
+          const mRoom = m.room || 'general';
+          return mRoom === roomId || mRoom === fallbackRoomId || (u.conversationId && mRoom === u.conversationId);
+        });
         const lastMsg = roomMessages[roomMessages.length - 1] || null;
-        const unread = unreadCounts[roomId] || 0;
+        const unread =
+          (unreadCounts[roomId] || 0) +
+          (u.conversationId && roomId !== u.conversationId ? (unreadCounts[u.conversationId] || 0) : 0);
         const isOnline =
           onlineUsers.some((ou) => String(ou.userId) === String(u.id)) || u.isOnline;
 
         return {
           id: roomId,
+          conversationId: u.conversationId || roomId,
           targetUser: u,
           name: u.name,
           avatar: u.avatar,
@@ -278,7 +285,9 @@ export const Sidebar = ({
           </div>
         ) : (
           filteredList.map((item) => {
-            const isSelected = activeConversationId === item.id;
+            const isSelected =
+              activeConversationId === item.id ||
+              (item.conversationId && activeConversationId === item.conversationId);
             const lastMsg = item.lastMessage;
             const isSentByMe =
               lastMsg && String(lastMsg.senderId) === String(activeUser?.id);

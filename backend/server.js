@@ -7,6 +7,7 @@ const cors = require('cors');
 const connectDB = require('./config/db');
 const userRoutes = require('./routes/userRoutes');
 const messageRoutes = require('./routes/messageRoutes');
+const chatRoutes = require('./routes/chatRoutes');
 const setupSocketIO = require('./socket/socketHandler');
 
 const app = express();
@@ -46,6 +47,7 @@ app.use(express.urlencoded({ extended: true }));
 // ─── Routes ───────────────────────────────────────────────────────
 app.use('/api/users', userRoutes);
 app.use('/api/messages', messageRoutes);
+app.use('/api/chats', chatRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

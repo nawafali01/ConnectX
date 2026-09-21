@@ -49,6 +49,18 @@ const setupSocketIO = (io) => {
       }
     });
 
+    // ─── Verified conversation room join ────────────────────────────
+    socket.on('join_conversation', (conversationId) => {
+      const roomId = typeof conversationId === 'object' && conversationId !== null
+        ? (conversationId.conversationId || conversationId.room)
+        : conversationId;
+
+      if (roomId) {
+        socket.join(String(roomId));
+        console.log(`🚪 Socket ${socket.id} joined conversation: ${roomId}`);
+      }
+    });
+
     // ─── Send a new message ────────────────────────────────────────
     socket.on('message:send', async (data) => {
       try {

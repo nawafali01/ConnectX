@@ -25,13 +25,18 @@ const SCREENS = {
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState(() => {
     try {
+      const activeId = localStorage.getItem('connectx_active_user_id');
+      const savedUsers = localStorage.getItem('connectx_users');
+      // Fresh Chrome window or new session -> start with Profile Creation screen
+      if (!activeId || !savedUsers) {
+        return SCREENS.FORM;
+      }
       const savedScreen = localStorage.getItem('connectx_current_screen');
       if (savedScreen && Object.values(SCREENS).includes(savedScreen)) {
         return savedScreen;
       }
     } catch (e) {}
-    // Default directly to full-screen production chat
-    return SCREENS.CHAT;
+    return SCREENS.FORM;
   });
 
   const [isSecondUserMode, setIsSecondUserMode] = useState(false);
@@ -52,12 +57,20 @@ export default function App() {
     activeUser,
     groups,
     registerUser,
+    addVerifiedContact,
     updateUserProfile,
     switchActiveUser,
     createGroup,
     leaveGroup,
     deleteUser,
   } = useUserManagement();
+
+  // If no registered human active user exists, force profile creation screen first
+  React.useEffect(() => {
+    if (!activeUser || activeUser.isSystem) {
+      setCurrentScreen(SCREENS.FORM);
+    }
+  }, [activeUser]);
 
   const {
     messages,
@@ -128,10 +141,14 @@ export default function App() {
               <div className="w-full max-w-lg glass-container p-6 rounded-3xl">
                 <UserFormScreen
                   onSubmit={handleFormSubmit}
-                  onBack={() => {
-                    setIsSecondUserMode(false);
-                    setCurrentScreen(SCREENS.CHAT);
-                  }}
+                  onBack={
+                    activeUser && !activeUser.isSystem
+                      ? () => {
+                          setIsSecondUserMode(false);
+                          setCurrentScreen(SCREENS.CHAT);
+                        }
+                      : null
+                  }
                   initialValues={!isSecondUserMode && activeUser ? activeUser : null}
                   isSecondUser={isSecondUserMode}
                 />
@@ -169,6 +186,7 @@ export default function App() {
               onSendMessage={sendMessage}
               onSwitchUser={switchActiveUser}
               onAddNewUser={registerUser}
+              onAddContact={addVerifiedContact}
               onSaveProfile={(updatedData) => {
                 if (activeUser) updateUserProfile(activeUser.id, updatedData);
               }}

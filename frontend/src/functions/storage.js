@@ -8,6 +8,19 @@ const STORAGE_KEYS = {
   MESSAGES: 'connectx_messages',
 };
 
+// Automatic one-time wipe to ensure all old test profiles are cleared
+const WIPE_VERSION_KEY = 'connectx_wipe_users_v3';
+try {
+  if (typeof window !== 'undefined' && !localStorage.getItem(WIPE_VERSION_KEY)) {
+    localStorage.removeItem(STORAGE_KEYS.USERS);
+    localStorage.removeItem(STORAGE_KEYS.ACTIVE_USER_ID);
+    localStorage.removeItem(STORAGE_KEYS.MESSAGES);
+    localStorage.removeItem('connectx_groups');
+    localStorage.removeItem('connectx_current_screen');
+    localStorage.setItem(WIPE_VERSION_KEY, 'true');
+  }
+} catch (e) {}
+
 const FAKE_USER_IDS = [
   'user-alice',
   'user-bob',

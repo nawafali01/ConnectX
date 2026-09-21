@@ -13,6 +13,7 @@ if (!fs.existsSync(DATA_DIR)) {
 let store = {
   users: [],
   messages: [],
+  conversations: [],
 };
 
 // Load existing data from file if present
@@ -22,6 +23,7 @@ try {
     store = JSON.parse(raw);
     if (!Array.isArray(store.users)) store.users = [];
     if (!Array.isArray(store.messages)) store.messages = [];
+    if (!Array.isArray(store.conversations)) store.conversations = [];
   }
 } catch (err) {
   console.error('Error reading chat store file:', err.message);
@@ -84,6 +86,17 @@ module.exports = {
 
   getUsers: () => store.users,
 
+  getUserById: (userId) => {
+    const strId = String(userId);
+    return store.users.find((u) => String(u.id || u._id) === strId) || null;
+  },
+
+  getUserByEmail: (email) => {
+    if (!email) return null;
+    const cleanEmail = email.trim().toLowerCase();
+    return store.users.find((u) => u.email && u.email.trim().toLowerCase() === cleanEmail) || null;
+  },
+
   addUser: (user) => {
     const existingIdx = store.users.findIndex((u) => u.id === user.id || u._id === user.id);
     if (existingIdx !== -1) {
@@ -111,4 +124,33 @@ module.exports = {
     persist();
     return store.users.length < prevLen;
   },
+
+  // ─── Conversation helpers with sorted ID lookup ───
+  findConversation: (userId1, userId2) => {
+    if (!userId1 || !userId2) return null;
+    const targetSorted = [String(userId1), String(userId2)].sort();
+    return (
+      store.conversations.find((c) => {
+        if (!Array.isArray(c.participants) || c.participants.length !== 2) return false;
+        const sortedP = c.participants.map(String).sort();
+        return sortedP[0] === targetSorted[0] && sortedP[1] === targetSorted[1];
+      }) || null
+    );
+  },
+
+  createConversation: (userId1, userId2) => {
+    const sortedP = [String(userId1), String(userId2)].sort();
+    const newConv = {
+      _id: 'conv_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+      participants: sortedP,
+      lastMessage: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    store.conversations.push(newConv);
+    persist();
+    return newConv;
+  },
+
+  getConversations: () => store.conversations,
 };

@@ -130,6 +130,7 @@ export const useChat = (activeUser, users = []) => {
       }
       if (activeConversationIdRef.current) {
         socket.emit('room:join', { room: activeConversationIdRef.current });
+        socket.emit('join_conversation', activeConversationIdRef.current);
       }
     };
 
@@ -279,6 +280,7 @@ export const useChat = (activeUser, users = []) => {
     } catch (e) {}
     if (socketRef.current) {
       socketRef.current.emit('room:join', { room: convId });
+      socketRef.current.emit('join_conversation', convId);
     }
   }, []);
 
