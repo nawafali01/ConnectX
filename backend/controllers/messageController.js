@@ -52,12 +52,16 @@ const uploadMedia = async (req, res) => {
       resource_type: 'auto',
     });
 
+    // Determine the correct mediaType for the frontend.
+    // Cloudinary uses resource_type 'video' for both video AND audio files.
+    // We use the original request MIME type to return the correct value.
+    const isAudio = (req.file?.mimetype || '').startsWith('audio/');
     res.json({
       success: true,
       url: result.secure_url,
       public_id: result.public_id,
       format: result.format,
-      mediaType: result.resource_type || 'image',
+      mediaType: isAudio ? 'audio' : (result.resource_type || 'image'),
     });
   } catch (error) {
     console.error('Cloudinary upload error:', error);

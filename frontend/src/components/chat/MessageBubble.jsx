@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Avatar } from '../common/Avatar';
 import { Check, CheckCheck, Trash2, Edit2, Smile, Copy } from 'lucide-react';
+import { VoiceMessageBubble } from './VoiceMessageBubble';
 
 const EMOJI_REACTIONS = ['👍', '❤️', '🔥', '😂', '🎉', '🚀'];
 
@@ -95,8 +96,17 @@ export const MessageBubble = ({
             </div>
           )}
 
-          {/* Media Attachment if present */}
-          {message.mediaUrl && (
+          {/* Voice Message if audio */}
+          {message.mediaType === 'audio' && message.mediaUrl && (
+            <VoiceMessageBubble
+              audioUrl={message.mediaUrl}
+              duration={message.audioDuration}
+              isOutgoing={isOutgoing}
+            />
+          )}
+
+          {/* Media Attachment if image */}
+          {message.mediaUrl && message.mediaType !== 'audio' && (
             <div className="my-1.5 rounded-xl overflow-hidden cursor-pointer group/media relative max-w-sm border border-black/20">
               <img
                 src={message.mediaUrl}

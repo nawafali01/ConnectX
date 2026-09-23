@@ -292,6 +292,7 @@ export const useChat = (activeUser, users = []) => {
       const trimmed = typeof text === 'string' ? text.trim() : '';
       const mediaUrl = media?.mediaUrl || media?.url || null;
       const mediaType = media?.mediaType || (mediaUrl ? 'image' : null);
+      const audioDuration = media?.audioDuration || null;
       const room = targetRoom || activeConversationIdRef.current || 'general';
 
       if ((!trimmed && !mediaUrl) || !activeUserRef.current) return null;
@@ -307,6 +308,7 @@ export const useChat = (activeUser, users = []) => {
         text: trimmed,
         mediaUrl,
         mediaType,
+        audioDuration,
         room,
         status: 'sent',
         createdAt: new Date().toISOString(),
@@ -326,6 +328,7 @@ export const useChat = (activeUser, users = []) => {
         text: messageData.text,
         mediaUrl: messageData.mediaUrl,
         mediaType: messageData.mediaType,
+        audioDuration: messageData.audioDuration,
         room: messageData.room,
       });
 

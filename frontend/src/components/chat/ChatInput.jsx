@@ -1,8 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
 import EmojiPicker from 'emoji-picker-react';
-import { Send, Smile, Paperclip, X, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { Send, Smile, Paperclip, X, Loader2, Mic, MicOff, Check } from 'lucide-react';
 import { api } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
+import { useVoiceRecorder } from '../../hooks/useVoiceRecorder';
+
+/** Format seconds â†’ M:SS */
+const formatRecordingTime = (secs) => {
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+};
 
 export const ChatInput = ({
   onSendMessage,
@@ -23,6 +31,17 @@ export const ChatInput = ({
   const emojiPickerRef = useRef(null);
   const emojiButtonRef = useRef(null);
   const typingTimerRef = useRef(null);
+  const recordingPromiseRef = useRef(null);
+
+  const {
+    isRecording,
+    recordingDuration,
+    permissionError,
+    isProcessing,
+    startRecording,
+    stopRecording,
+    cancelRecording,
+  } = useVoiceRecorder();
 
   // Auto-resize textarea
   useEffect(() => {
@@ -39,6 +58,13 @@ export const ChatInput = ({
       if (filePreview) URL.revokeObjectURL(filePreview);
     };
   }, [filePreview]);
+
+  // Show permission error toast
+  useEffect(() => {
+    if (permissionError) {
+      toast.error('Microphone Error', permissionError);
+    }
+  }, [permissionError]);
 
   // Outside click for emoji picker
   useEffect(() => {
@@ -155,8 +181,72 @@ export const ChatInput = ({
     }
   };
 
+  // â”€â”€ Voice Recording Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  const handleStartRecording = async () => {
+    if (disabled || isUploading) return;
+    try {
+      // startRecording() returns a Promise â€” store it to await on send/cancel
+      recordingPromiseRef.current = startRecording();
+    } catch (err) {
+      // Error already handled by hook (sets permissionError)
+    }
+  };
+
+  const handleCancelRecording = () => {
+    cancelRecording();
+    recordingPromiseRef.current = null;
+  };
+
+  const handleSendVoice = async () => {
+    // Stop recording â†’ wait for blob
+    stopRecording();
+
+    const result = await recordingPromiseRef.current;
+    recordingPromiseRef.current = null;
+
+    if (!result || !result.blob || result.blob.size < 500) {
+      toast.warning('Recording too short', 'Hold the mic button longer to record a voice message.');
+      return;
+    }
+
+    const { blob, duration, mimeType } = result;
+
+    // Wrap Blob in a File so Multer can derive extension
+    const ext = mimeType.includes('ogg') ? 'ogg'
+      : mimeType.includes('mp4') ? 'mp4'
+      : mimeType.includes('wav') ? 'wav'
+      : 'webm';
+
+    const audioFile = new File([blob], `voice_message.${ext}`, { type: mimeType });
+
+    setIsUploading(true);
+    try {
+      const res = await api.uploadMedia(audioFile);
+
+      if (res && res.success && res.url) {
+        onSendMessage('', {
+          mediaUrl: res.url,
+          mediaType: 'audio',
+          audioDuration: duration,
+        });
+        toast.success('Voice Sent', 'Your voice message was sent.');
+      } else {
+        toast.error('Upload Failed', res?.message || 'Could not upload voice message. Try again.');
+      }
+    } catch (err) {
+      console.error('Voice upload error:', err);
+      toast.error('Upload Failed', 'Could not upload voice message. Try again.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Determine if mic button should be shown (only when text is empty and no file selected)
+  const showMicButton = !text.trim() && !selectedFile && !isRecording;
+
   return (
-    <footer className="relative bg-slate-900/90 border-t border-slate-800 p-2 sm:p-3 select-none backdrop-blur-md">
+    <footer className="relative bg-slate-900/90 border-t border-slate-800 p-1.5 sm:p-2 select-none backdrop-blur-md">
       {/* Emoji Picker Popup */}
       {showEmojiPicker && (
         <div
@@ -215,73 +305,134 @@ export const ChatInput = ({
         </div>
       )}
 
-      {/* Input Control Pill */}
-      <form onSubmit={handleSubmit} className="flex items-end gap-2">
-        <div className="flex-1 flex items-center gap-1.5 bg-slate-800/90 border border-slate-700/70 focus-within:border-violet-500 rounded-2xl px-2.5 py-1.5 transition-all shadow-inner">
-          {/* Hidden File Input */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handleFileSelect}
-          />
+      {/* â”€â”€ RECORDING STATE UI â”€â”€ */}
+      {isRecording && (
+        <div className="flex items-center gap-3 animate-in fade-in duration-200">
+          {/* Red pulsing mic indicator */}
+          <div className="flex items-center gap-2 flex-1 bg-slate-800/90 border border-rose-500/40 rounded-2xl px-3 py-2.5">
+            <span className="relative flex-shrink-0">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 block" />
+              <span className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping opacity-75" />
+            </span>
+            <span className="text-rose-400 text-xs font-semibold">Recording</span>
+            <span className="text-slate-200 text-xs font-mono font-bold tabular-nums ml-1">
+              {formatRecordingTime(recordingDuration)}
+            </span>
+          </div>
 
-          {/* Attachment Button */}
+          {/* Cancel Button */}
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading || disabled}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-700/60 transition-colors flex-shrink-0"
-            title="Attach image"
+            onClick={handleCancelRecording}
+            className="p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 hover:text-slate-200 transition-all active:scale-95 flex-shrink-0"
+            title="Cancel recording"
           >
-            <Paperclip size={18} />
+            <X size={18} />
           </button>
 
-          {/* Emoji Toggle Button */}
+          {/* Send Voice Button */}
           <button
-            ref={emojiButtonRef}
             type="button"
-            onClick={() => setShowEmojiPicker((prev) => !prev)}
-            disabled={disabled}
-            className={`p-1.5 rounded-xl transition-colors flex-shrink-0 ${
-              showEmojiPicker
-                ? 'text-violet-400 bg-violet-600/20'
-                : 'text-slate-400 hover:text-slate-100 hover:bg-slate-700/60'
-            }`}
-            title="Choose emojis"
+            onClick={handleSendVoice}
+            disabled={isProcessing || isUploading}
+            className="p-2.5 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 disabled:pointer-events-none text-white shadow-lg shadow-emerald-600/30 active:scale-95 transition-all flex items-center justify-center flex-shrink-0"
+            title="Send voice message"
           >
-            <Smile size={18} />
+            {isProcessing || isUploading ? (
+              <Loader2 size={18} className="animate-spin" />
+            ) : (
+              <Check size={18} />
+            )}
           </button>
-
-          {/* Expandable Text Input */}
-          <textarea
-            ref={textareaRef}
-            value={text}
-            onChange={handleTextChange}
-            onKeyDown={handleKeyDown}
-            disabled={isUploading || disabled}
-            rows={1}
-            placeholder={selectedFile ? 'Add a caption...' : placeholder}
-            className="flex-1 bg-transparent text-slate-100 placeholder-slate-400 text-xs sm:text-sm outline-none resize-none py-1 max-h-32 min-h-[22px] leading-relaxed"
-          />
         </div>
+      )}
 
-        {/* Send Action Button */}
-        <button
-          id="btn-send-message"
-          type="submit"
-          disabled={isUploading || disabled || (!text.trim() && !selectedFile)}
-          className="p-2.5 rounded-2xl bg-gradient-to-tr from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-40 disabled:pointer-events-none text-white shadow-lg shadow-violet-600/30 active:scale-95 transition-all flex items-center justify-center flex-shrink-0"
-          title="Send message"
-        >
-          {isUploading ? (
-            <Loader2 size={18} className="animate-spin" />
-          ) : (
-            <Send size={18} className="ml-0.5" />
-          )}
-        </button>
-      </form>
+      {/* ── NORMAL INPUT STATE UI ── */}
+      {!isRecording && (
+        <form onSubmit={handleSubmit} className="flex items-end gap-2">
+          <div className="flex-1 flex items-center gap-1.5 bg-slate-800/90 border border-slate-700/70 focus-within:border-violet-500 rounded-2xl px-2.5 py-1.5 transition-all shadow-inner">
+            {/* Hidden File Input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileSelect}
+            />
+
+            {/* Attachment Button */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading || disabled}
+              className="p-1.5 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-700/60 transition-colors flex-shrink-0"
+              title="Attach image"
+            >
+              <Paperclip size={18} />
+            </button>
+
+            {/* Emoji Toggle Button */}
+            <button
+              ref={emojiButtonRef}
+              type="button"
+              onClick={() => setShowEmojiPicker((prev) => !prev)}
+              disabled={disabled}
+              className={`p-1.5 rounded-xl transition-colors flex-shrink-0 ${
+                showEmojiPicker
+                  ? 'text-violet-400 bg-violet-600/20'
+                  : 'text-slate-400 hover:text-slate-100 hover:bg-slate-700/60'
+              }`}
+              title="Choose emojis"
+            >
+              <Smile size={18} />
+            </button>
+
+            {/* Expandable Text Input */}
+            <textarea
+              ref={textareaRef}
+              value={text}
+              onChange={handleTextChange}
+              onKeyDown={handleKeyDown}
+              disabled={isUploading || disabled}
+              rows={1}
+              placeholder={selectedFile ? 'Add a caption...' : placeholder}
+              className="flex-1 bg-transparent text-slate-100 placeholder-slate-400 text-xs sm:text-sm outline-none resize-none py-1 max-h-32 min-h-[22px] leading-relaxed"
+            />
+
+            {/* Mic Button — inside pill, right side, only when text empty & no file */}
+            {showMicButton && (
+              <button
+                id="btn-start-voice-recording"
+                type="button"
+                onClick={handleStartRecording}
+                disabled={disabled || isUploading}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-violet-400 hover:bg-violet-600/15 disabled:opacity-40 disabled:pointer-events-none active:scale-95 transition-all flex-shrink-0"
+                title="Record a voice message"
+              >
+                <Mic size={18} />
+              </button>
+            )}
+
+            {/* Send Button — inside pill, rightmost, only when there's content */}
+            {!showMicButton && (
+              <button
+                id="btn-send-message"
+                type="submit"
+                disabled={isUploading || disabled || (!text.trim() && !selectedFile)}
+                className="p-1.5 rounded-xl bg-gradient-to-tr from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-40 disabled:pointer-events-none text-white active:scale-95 transition-all flex items-center justify-center flex-shrink-0"
+                title="Send message"
+              >
+                {isUploading ? (
+                  <Loader2 size={17} className="animate-spin" />
+                ) : (
+                  <Send size={17} className="ml-0.5" />
+                )}
+              </button>
+            )}
+          </div>
+        </form>
+      )}
     </footer>
   );
 };
+

@@ -21,12 +21,12 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  // Allow common image formats
-  const allowedMime = /^image\/(jpeg|png|webp|gif|svg\+xml|avif|jpg)$/i;
+  // Allow common image formats AND audio formats (for voice messages)
+  const allowedMime = /^(image\/(jpeg|png|webp|gif|svg\+xml|avif|jpg)|audio\/(webm|ogg|mp4|wav|mpeg|aac|x-m4a))$/i;
   if (allowedMime.test(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Only image files (JPEG, PNG, WebP, GIF, SVG) are allowed'), false);
+    cb(new Error('Only image files (JPEG, PNG, WebP, GIF, SVG) and audio files (WebM, OGG, MP4, WAV) are allowed'), false);
   }
 };
 

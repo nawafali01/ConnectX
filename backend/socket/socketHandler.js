@@ -64,7 +64,7 @@ const setupSocketIO = (io) => {
     // ─── Send a new message ────────────────────────────────────────
     socket.on('message:send', async (data) => {
       try {
-        const { senderId, senderName, senderAvatar, senderCustomPhoto, text, mediaUrl, mediaType, room = 'general' } = data;
+        const { senderId, senderName, senderAvatar, senderCustomPhoto, text, mediaUrl, mediaType, audioDuration, room = 'general' } = data;
 
         let msgObj;
         if (mongoose.connection.readyState === 1) {
@@ -76,6 +76,7 @@ const setupSocketIO = (io) => {
             text: text || '',
             mediaUrl: mediaUrl || null,
             mediaType: mediaType || (mediaUrl ? 'image' : null),
+            audioDuration: audioDuration || null,
             room,
             status: 'sent',
           });
@@ -90,6 +91,7 @@ const setupSocketIO = (io) => {
             text: text || '',
             mediaUrl: mediaUrl || null,
             mediaType: mediaType || (mediaUrl ? 'image' : null),
+            audioDuration: audioDuration || null,
             room,
             status: 'sent',
             createdAt: new Date().toISOString(),

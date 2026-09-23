@@ -32,6 +32,10 @@ const messageSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    audioDuration: {
+      type: Number,
+      default: null,
+    },
     room: {
       type: String,
       default: 'general',
