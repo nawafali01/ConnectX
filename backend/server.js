@@ -1,3 +1,7 @@
+/**
+ * ConnectX Backend Entry Point
+ * Handles Express REST API routes, Socket.IO real-time events, and MongoDB connection.
+ */
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
