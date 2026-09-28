@@ -73,69 +73,70 @@ export const useVoiceRecorder = () => {
    * or resolves with null when cancelled.
    */
   const startRecording = useCallback(() => {
-    return new Promise(async (resolve, reject) => {
+    return new Promise((resolve, reject) => {
       setPermissionError(null);
 
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        streamRef.current = stream;
+      navigator.mediaDevices
+        .getUserMedia({ audio: true })
+        .then((stream) => {
+          streamRef.current = stream;
 
-        const mimeType = _getSupportedMimeType();
-        const options = mimeType ? { mimeType } : {};
+          const mimeType = _getSupportedMimeType();
+          const options = mimeType ? { mimeType } : {};
 
-        const recorder = new MediaRecorder(stream, options);
-        mediaRecorderRef.current = recorder;
-        chunksRef.current = [];
-        resolveRef.current = resolve;
-        rejectRef.current = reject;
+          const recorder = new MediaRecorder(stream, options);
+          mediaRecorderRef.current = recorder;
+          chunksRef.current = [];
+          resolveRef.current = resolve;
+          rejectRef.current = reject;
 
-        recorder.ondataavailable = (e) => {
-          if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
-        };
+          recorder.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
+          };
 
-        recorder.onstop = () => {
-          const elapsed = startTimeRef.current
-            ? Math.round((Date.now() - startTimeRef.current) / 1000)
-            : 0;
+          recorder.onstop = () => {
+            const elapsed = startTimeRef.current
+              ? Math.round((Date.now() - startTimeRef.current) / 1000)
+              : 0;
 
-          const blob = new Blob(chunksRef.current, {
-            type: recorder.mimeType || 'audio/webm',
-          });
+            const blob = new Blob(chunksRef.current, {
+              type: recorder.mimeType || 'audio/webm',
+            });
 
-          const res = resolveRef.current;
-          _resetState();
-          if (res) res({ blob, duration: elapsed, mimeType: recorder.mimeType || 'audio/webm' });
-        };
+            const res = resolveRef.current;
+            _resetState();
+            if (res) res({ blob, duration: elapsed, mimeType: recorder.mimeType || 'audio/webm' });
+          };
 
-        recorder.onerror = (err) => {
-          console.error('MediaRecorder error:', err);
-          const rej = rejectRef.current;
-          _resetState();
-          if (rej) rej(err);
-        };
+          recorder.onerror = (err) => {
+            console.error('MediaRecorder error:', err);
+            const rej = rejectRef.current;
+            _resetState();
+            if (rej) rej(err);
+          };
 
-        recorder.start(250); // collect chunks every 250ms
-        startTimeRef.current = Date.now();
-        setIsRecording(true);
-        setRecordingDuration(0);
+          recorder.start(250); // collect chunks every 250ms
+          startTimeRef.current = Date.now();
+          setIsRecording(true);
+          setRecordingDuration(0);
 
-        // Live timer – increments every second
-        timerRef.current = setInterval(() => {
-          setRecordingDuration((prev) => prev + 1);
-        }, 1000);
-
-      } catch (err) {
-        console.error('Microphone access error:', err);
-        const isPermissionDenied =
-          err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError';
-        setPermissionError(
-          isPermissionDenied
-            ? 'Microphone permission denied. Please allow mic access in your browser settings.'
-            : `Could not access microphone: ${err.message}`
-        );
-        _stopStream();
-        reject(err);
-      }
+          // Live timer – increments every second
+          timerRef.current = setInterval(() => {
+            setRecordingDuration((prev) => prev + 1);
+          }, 1000);
+        })
+        .catch((err) => {
+          console.error('Microphone access error:', err);
+          const isPermissionDenied =
+            err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError';
+          setPermissionError(
+            isPermissionDenied
+              ? 'Microphone permission denied. Please allow mic access in your browser settings.'
+              : `Could not access microphone: ${err.message}`
+          );
+          _stopStream();
+          reject(err);
+        });
     });
   }, []);
 

@@ -202,7 +202,7 @@ export default function App() {
         </main>
 
         {/* Agentation Visual Feedback Layer for AI Agents (in dev mode) */}
-        {(import.meta.env?.DEV || process.env.NODE_ENV === 'development') && <Agentation />}
+        {Boolean(import.meta.env?.DEV) && <Agentation />}
       </div>
     </ToastProvider>
   );
