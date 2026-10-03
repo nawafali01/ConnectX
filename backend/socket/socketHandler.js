@@ -190,11 +190,11 @@ const setupSocketIO = (io) => {
 
     // ─── Typing indicator ──────────────────────────────────────────
     socket.on('typing:start', ({ name, room = 'general' }) => {
-      socket.to(room).emit('typing:show', { name });
+      socket.to(room).emit('typing:show', { name, room });
     });
 
     socket.on('typing:stop', ({ room = 'general' }) => {
-      socket.to(room).emit('typing:hide');
+      socket.to(room).emit('typing:hide', { room });
     });
 
     // ─── Disconnect ────────────────────────────────────────────────

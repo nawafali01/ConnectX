@@ -85,6 +85,23 @@ const addUserAndCreateRoom = async (req, res) => {
       }
     }
 
+    // Last resort: if still not found, try searching all MongoDB users by name
+    // This handles the case where a user registered without an email field
+    if (!targetUser && isDbConnected) {
+      const escapedName = cleanName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const byName = await User.findOne({
+        name: { $regex: new RegExp(`^${escapedName}$`, 'i') },
+      });
+      // Verify email matches (case-insensitive) — may be empty string if not set
+      if (byName && (normalizeEmail(byName.email) === cleanEmail || byName.email === '')) {
+        // If email was missing/empty, update it now so future lookups work
+        if (!byName.email || byName.email === '') {
+          await User.findByIdAndUpdate(byName._id, { email: cleanEmail }).catch(() => {});
+        }
+        targetUser = byName;
+      }
+    }
+
     if (!targetUser) {
       return res.status(404).json({
         success: false,

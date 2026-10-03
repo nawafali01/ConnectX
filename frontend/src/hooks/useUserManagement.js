@@ -62,11 +62,18 @@ export const useUserManagement = () => {
     } catch (e) {}
   }, [groups]);
 
-  // Sync users list from backend on mount
+  // Sync users list from backend on mount & re-register any local-only users
   useEffect(() => {
     api.getAllUsers()
-      .then((res) => {
+      .then(async (res) => {
         if (res && res.success && Array.isArray(res.users) && res.users.length > 0) {
+          const backendEmailSet = new Set(
+            res.users.map((u) => (u.email || '').trim().toLowerCase()).filter(Boolean)
+          );
+          const backendIdSet = new Set(
+            res.users.map((u) => (u.id || u._id || '').toString())
+          );
+
           setUsers((prev) => {
             const map = new Map();
             prev.filter((u) => !isFakeUser(u)).forEach((u) => map.set(u.id, u));
@@ -83,6 +90,43 @@ export const useUserManagement = () => {
             const result = Array.from(map.values());
             return result.length > 0 ? result : [INITIAL_BOT_USER];
           });
+
+          // Re-register any local users that are missing from backend
+          const localUsers = getStoredUsers().filter(
+            (u) =>
+              !isFakeUser(u) &&
+              !u.isSystem &&
+              u.name &&
+              u.name !== 'Anonymous User' &&
+              !backendIdSet.has(u.id) &&
+              !backendEmailSet.has((u.email || '').trim().toLowerCase())
+          );
+
+          for (const localUser of localUsers) {
+            try {
+              const syncRes = await api.registerUser({
+                name: localUser.name,
+                phone: localUser.phone || '+92 0000000000',
+                email: localUser.email || '',
+                bio: localUser.bio || 'Hey there! I am using ConnectX.',
+                avatar: localUser.avatar || null,
+                customPhoto: localUser.customPhoto || null,
+              });
+              if (syncRes && syncRes.success && syncRes.user) {
+                const backendId = (syncRes.user.id || syncRes.user._id).toString();
+                setUsers((prev) =>
+                  prev.map((u) =>
+                    u.id === localUser.id
+                      ? { ...u, ...syncRes.user, id: backendId }
+                      : u
+                  )
+                );
+                console.log(`✅ Synced local user "${localUser.name}" to backend`);
+              }
+            } catch (err) {
+              console.warn(`Could not sync local user "${localUser.name}" to backend:`, err);
+            }
+          }
         }
       })
       .catch((err) => console.warn('Could not fetch backend users:', err));
@@ -132,15 +176,30 @@ export const useUserManagement = () => {
       setActiveUserId(localUser.id);
     }
 
+    // Helper: attempt registration with 1 retry on failure
+    const attemptRegister = async (retryCount = 0) => {
+      try {
+        const res = await api.registerUser({
+          name: localUser.name,
+          phone: localUser.phone || '+92 0000000000',
+          email: localUser.email,
+          bio: localUser.bio,
+          avatar: localUser.avatar,
+          customPhoto: localUser.customPhoto,
+        });
+        return res;
+      } catch (err) {
+        if (retryCount < 1) {
+          // Wait 2s and retry once
+          await new Promise((r) => setTimeout(r, 2000));
+          return attemptRegister(retryCount + 1);
+        }
+        throw err;
+      }
+    };
+
     try {
-      const res = await api.registerUser({
-        name: localUser.name,
-        phone: localUser.phone,
-        email: localUser.email,
-        bio: localUser.bio,
-        avatar: localUser.avatar,
-        customPhoto: localUser.customPhoto,
-      });
+      const res = await attemptRegister();
       if (res && res.success && res.user) {
         const backendId = (res.user.id || res.user._id).toString();
         const synchronizedUser = {
@@ -156,9 +215,11 @@ export const useUserManagement = () => {
           setActiveUserId(backendId);
         }
         return synchronizedUser;
+      } else if (res && !res.success) {
+        console.warn('Backend registration failed:', res.message);
       }
     } catch (err) {
-      console.warn('Backend user registration error:', err);
+      console.warn('Backend user registration error (after retry):', err);
     }
 
     return localUser;
