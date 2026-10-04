@@ -57,3 +57,8 @@ npm run dev
 ## 📜 License
 
 MIT License.
+
+---
+
+*Last updated: October 2026*
+
